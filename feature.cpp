@@ -113,7 +113,6 @@ void generate_feature_set_type_vertical_2(std::vector<Feature*> &featSet, const 
 
         height ++;
     }
-
 }
 
 
@@ -294,58 +293,3 @@ void generate_feature_set(std::vector<Feature*> &featSet, const int WIDTH, const
 
     generate_feature_set_cross(featSet, WIDTH, HEIGHT);
 }
-
-
-void extract_sample_features(const char *outfile, std::vector<Feature*> &featSet,
-            std::list<float*> &positiveSet,
-            std::list<float *> &negativeSet, int stride)
-{
-    FILE *fout = fopen(outfile, "wb");
-    assert(fout != NULL);
-
-    int fsize = featSet.size();
-
-    int numPos = positiveSet.size();
-    int numNeg = negativeSet.size();
-
-    int sampleSize = numPos + numNeg;
-
-    float *values = new float[sampleSize];
-
-    for(int i = 0; i < fsize; i++)
-    {
-        Feature *feat = featSet[i];
-
-        std::list<float*>::iterator iter = positiveSet.begin();
-
-        for(int j = 0; j < numPos; j++, iter++)
-            values[j] = get_value(feat, *iter, stride, 0, 0);
-
-        iter = negativeSet.begin();
-
-        for(int j = numPos; j < sampleSize; j++, iter++)
-            values[j] = get_value(feat, *iter, stride, 0, 0);
-
-        fwrite(values, sizeof(float), sampleSize, fout);
-        printf("extract sample features:%.2f%%\r", 100.0 * i / fsize);
-        fflush(stdout);
-    }
-    printf("                                                  \r");
-
-    fclose(fout);
-    delete[] values;
-}
-
-
-long init_feature_buffer_size(long featureSetSize, int sampleSize)
-{
-    long bufferSize;
-    long featureSize = featureSetSize * sampleSize;
-
-    bufferSize = SAMPLE_FEATURE_MEMEORY_SIZE * 1024L * 1024L * 1024L / 4;
-    bufferSize -= (bufferSize % sampleSize);
-    bufferSize = featureSize < bufferSize ? featureSize : bufferSize;
-
-    return bufferSize;
-}
-

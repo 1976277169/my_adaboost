@@ -23,9 +23,10 @@ void del(CascadeClassifier *cascade)
 
 int classify(CascadeClassifier *cascade, float *img, int stride, int x, int y)
 {
-    if(cascade->scs.size() <= 0) return 0;
     std::list<StrongClassifier*>::iterator iter = cascade->scs.begin();
     std::list<StrongClassifier*>::iterator iterEnd = cascade->scs.end();
+
+    if(cascade->scs.size() == 0) return 0;
 
     while(iter != iterEnd){
         if(classify(*iter, img, stride, x, y) == 0)
@@ -67,7 +68,7 @@ float fpr(CascadeClassifier *cascade, std::list<float*> &negSamples, int stride)
 
     while(iter != iterEnd)
     {
-        if(classify(cascade, *iter, stride, 0, 0) == 1)
+        if(classify(cascade, *iter, stride, 0, 0) == 0)
             fp ++;
 
         iter++;

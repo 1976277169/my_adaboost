@@ -38,7 +38,7 @@ void train(StrongClassifier *sc, std::list<float *> &posSamples, int stride, flo
         scores[i] = 0;
 
         for(int j = 0; j < wcsSize; j++)
-            scores[i] += sc->weights[i] * classify(sc->wcs[i], *iter, stride, 0, 0);
+            scores[i] += sc->weights[j] * classify(sc->wcs[j], *iter, stride, 0, 0);
     }
 
     sort_arr_float_ascend(scores, size);
@@ -55,6 +55,7 @@ void train(StrongClassifier *sc, std::list<float *> &posSamples, int stride, flo
     delete [] scores;
 }
 
+
 int classify(StrongClassifier *sc, float *img, int stride, int x, int y)
 {
     int size = sc->wcs.size();
@@ -63,7 +64,7 @@ int classify(StrongClassifier *sc, float *img, int stride, int x, int y)
     for(int i = 0; i < size; i++)
         scores += sc->weights[i] * classify(sc->wcs[i], img, stride, x, y);
 
-    if(scores >= sc->thresh)
+    if(scores > sc->thresh)
         return 1;
 
     return 0;
@@ -100,4 +101,13 @@ float fpr(StrongClassifier *sc, std::list<float*> &negSamples, int stride)
         fp += (classify(sc, *iter, stride, 0, 0) == 1);
 
     return float(fp) / size;
+}
+
+
+int empty(StrongClassifier *sc)
+{
+    if(sc == NULL || sc->wcs.size() == 0)
+        return 1;
+
+    return 0;
 }

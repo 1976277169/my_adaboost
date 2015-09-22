@@ -23,9 +23,9 @@ void init_weak_classifier(WeakClassifier *weak, float thresh, int sign, Feature 
 float train(WeakClassifier *weak, float *value, int posSize, int negSize, float *weights)
 {
     int sampleSize = posSize + negSize;
-    Scores scores[MAX_SAMPLE_SIZE];
-    float wp[MAX_SAMPLE_SIZE], wn[MAX_SAMPLE_SIZE];
-
+    Scores *scores = new Scores[sampleSize];
+    float *wp = new float[sampleSize];
+    float *wn = new float[sampleSize];
     float tp, tn;
 
     float minError = 1;
@@ -98,6 +98,10 @@ float train(WeakClassifier *weak, float *value, int posSize, int negSize, float 
         }
     }
 
+    delete[] scores;
+    delete[] wp;
+    delete[] wn;
+
     return minError;
 }
 
@@ -115,50 +119,3 @@ int classify(WeakClassifier *weak, float *img, int stride, int x, int y)
         return -1;
 }
 
-
-static int classify(WeakClassifier *weak, float *values, int size)
-{
-    int res = 0;
-    float thresh = weak->thresh;
-    float sign = weak->sign;
-
-    for(int i = 0; i < size; i++)
-        res += ( (values[i] > thresh  && sign == 1) || (values[i] <= thresh && sign == 0) );
-
-    return res;
-}
-
-
-float test_weak_classifier(float *posSample, int numPos, float *negSample, int numNeg)
-{
-    WeakClassifier wc;
-
-    int sampleSize = numPos + numNeg;
-
-    float *values = new float[sampleSize];
-    float *weights = new float[sampleSize];
-
-    float factor = 0.5 / numPos;
-
-    for(int i = 0; i < numPos; i++)
-    {
-        values[i] = posSample[i];
-        weights[i] = factor;
-    }
-
-    factor = 0.5 / numNeg;
-
-    for(int i = numPos; i < sampleSize; i++)
-    {
-        values[i] = negSample[i - numPos];
-        weights[i] = factor;
-    }
-
-    train(&wc, values, numPos, numNeg, weights);
-
-    int cpos = classify(&wc, posSample, numPos) ;
-    int cneg = numNeg - classify(&wc, negSample, numNeg);
-
-
-    return 100.0 * (cpos + cneg) / (numPos + numNeg);
-}

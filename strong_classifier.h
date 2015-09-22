@@ -17,10 +17,11 @@ typedef struct{
 void init_strong_classifier(StrongClassifier *sc, std::vector<float> &aweights, std::vector<WeakClassifier*> &awcs, float thresh);
 void add(StrongClassifier *sc, WeakClassifier *wc, float weight);
 
-void train(StrongClassifier *sc, std::list<float *> posSamples, int stride, float maxfnr);
+void train(StrongClassifier *sc, std::list<float *> &posSamples, int stride, float maxfnr);
 int classify(StrongClassifier *sc, float *img, int stride, int x, int y);
 
 float fnr(StrongClassifier *sc, std::list<float*> &posSamples, int stride);
 float fpr(StrongClassifier *sc, std::list<float*> &negSamples, int stride);
 
+int empty(StrongClassifier *sc);
 #endif

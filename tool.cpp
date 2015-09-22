@@ -44,16 +44,15 @@ void normalize_image(float *img, int width, int height)
     stand = sqrt(stand / sq);
 
     for(int i = 0; i < sq; i++)
-        img[i] = (img[i] - mean) / (stand + 0.0001);
+        img[i] = (img[i] - mean) / stand;
 }
 
 
 float* rotate_90deg(float *img, int width, int height)
 {
-    float *img90deg = new float[width * height];
+    float *img90deg = new float[width*height];
     float *ptrImg = img;
 
-    assert(img90deg != NULL);
     for (int y = 0; y < height; y++)
     {
         int idx1 = height - 1 - y;
@@ -72,7 +71,6 @@ float* rotate_180deg(float *img, int width, int height)
     float *img180deg = new float[width*height];
     float *ptrImg = img;
 
-    assert(img180deg != NULL);
     for (int y = 0; y < height; y++)
     {
         int idx = (height - 1 - y) * width;
@@ -93,8 +91,6 @@ float* rotate_270deg(float *img, int width, int height)
     float *img270deg = new float[width*height];
     float *ptrImg = img;
 
-    assert(img270deg != NULL);
-
     for (int y = 0; y < height; y++)
     {
         for (int x = 0; x < width; x++)
@@ -111,8 +107,6 @@ float* vertical_mirror(float *img, int width, int height)
 {
     float *vmirror = new float[width * height];
     float *ptrImg = img;
-
-    assert(vmirror != NULL);
 
     for(int y = 0; y < height; y++)
     {
@@ -153,7 +147,6 @@ void add_vertical_mirror(std::list<float*> &set, int size, int width, int height
 void integral_image(float *img, int width, int height)
 {
     float *ptrImg = img;
-
     for(int y = 0; y < height; y++)
     {
         for(int x = 1; x < width; x++)

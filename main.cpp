@@ -14,12 +14,13 @@
 #include <string.h>
 
 
-#define ADD_MIRROR_SAMPLE
-#define ADD_ROTATE_SAMPLE
+//#define ADD_MIRROR_SAMPLE
+//#define ADD_ROTATE_SAMPLE
 
 int generate_positive_samples(const char *fileName, std::list<float *> &positiveSet, int width, int height)
 {
     FILE *fin = fopen(fileName, "r");
+
     if(fin == NULL){
         printf("Can't open file %s\n", fileName);
         return 0;
@@ -38,11 +39,9 @@ int generate_positive_samples(const char *fileName, std::list<float *> &positive
 
     ret = fread(&size, sizeof(int), 1, fin);
 
-
     for(int i = 0; i < size; i++)
     {
         float *data = new float[sq];
-        assert(data != NULL);
         ret = fread(data, sizeof(float), sq, fin);
 
         if(ret == 0)
@@ -55,24 +54,21 @@ int generate_positive_samples(const char *fileName, std::list<float *> &positive
         positiveSet.push_back(data);
     }
 
+
 #ifdef ADD_ROTATE_SAMPLE
-    printf("Add rotated images\n");
     add_rotated_images(positiveSet, size, width, height);
 #endif
 
+
 #ifdef ADD_MIRROR_SAMPLE
-    printf("Add vertical mirror images\n");
     add_vertical_mirror(positiveSet, size, width, height);
 #endif
 
     std::list<float *>::iterator iter = positiveSet.begin();
     std::list<float *>::iterator iterEnd = positiveSet.end();
 
-    printf("Intergral images\n");
     while(iter != iterEnd)
     {
-        assert(*iter != NULL);
-
         integral_image((*iter), width, height);
         iter ++;
     }
@@ -138,20 +134,9 @@ int generate_negative_samples(FILE* fin, std::list<float *> &negativeSet, int wi
         std::list<float *> tmplist;
         tmplist.push_back(data);
 
-#ifdef ADD_MIRROR_SAMPLE
-        tmplist.push_back(vertical_mirror(data, width, height));
-#endif
-
-#ifdef ADD_ROTATE_SAMPLE
-        tmplist.push_back(rotate_90deg(data, width, height));
-        tmplist.push_back(rotate_180deg(data, width, height));
-        tmplist.push_back(rotate_270deg(data, width, height));
-#endif
-
         std::list<float*>::iterator iter = tmplist.begin();
         std::list<float*>::iterator iterEnd = tmplist.end();
 
-        assert(tmplist.size() != 0);
         while(iter != iterEnd)
         {
             integral_image(*iter, width, height);
@@ -164,106 +149,14 @@ int generate_negative_samples(FILE* fin, std::list<float *> &negativeSet, int wi
         }
 
         tmplist.clear();
-        printf("negtive samples %ld\r", negativeSet.size());
-        fflush(stdout);
     }
 
     return negativeSet.size();
 }
 
 
-float select_best_weak_classifier(FILE *fin, float *buffer, long bufferSize, std::vector<Feature *> &featureSet,
-            float *weights, int numPos, int numNeg, WeakClassifier *bestWC)
-{
-    float minError = 1, error;
-
-    int sampleSize = numPos + numNeg;
-    int fsize = featureSet.size();
-    int featureSize = sampleSize * fsize;
-    int bfsize = bufferSize / sampleSize;
-    int len = featureSize / bufferSize;
-    int idx = 0, bestIdx = 0;
-
-    assert(fin != NULL);
-
-    fseek(fin, 0, SEEK_SET);
-
-    for(int i = 0; i < len; i++)
-    {
-        int ret = fread(buffer, sizeof(float), bufferSize, fin);
-        assert(ret == bufferSize);
-
-        float *trainData = buffer;
-
-        for(int j = 0; j < bfsize; j++, idx++)
-        {
-            Feature *feat = featureSet[idx];
-            WeakClassifier wc;
-            init_weak_classifier(&wc, 0, 0, feat);
-
-            error = train(&wc, trainData, numPos, numNeg, weights);
-
-            if(error == 0)
-            {
-                for(int i = 0; i < sampleSize; i++)
-                    fprintf(stderr, "%f ", trainData[i]);
-                fprintf(stderr, "\n");
-                exit(0);
-            }
-            if(error < minError)
-            {
-                init_weak_classifier(bestWC, wc.thresh, wc.sign, feat);
-                minError = error;
-                bestIdx = idx;
-            }
-
-            trainData += sampleSize;
-            printf("best weak classifier: %.2f%% %f %d\r", 100.0 * idx / fsize, minError, bestIdx);
-            fflush(stdout);
-        }
-    }
-
-    len = featureSize % bufferSize;
-    if(len > 0)
-    {
-        int ret = fread(buffer, sizeof(float), len, fin);
-        assert(ret == len);
-
-        len /= sampleSize;
-
-        float *trainData = buffer;
-
-        for(int j = 0; j < len; j++, idx++)
-        {
-            Feature *feat = featureSet[idx];
-            WeakClassifier wc;
-            init_weak_classifier(&wc, 0, 0, feat);
-
-            error = train(&wc, trainData, numPos, numNeg, weights);
-            if(error < minError)
-            {
-                init_weak_classifier(bestWC, wc.thresh, wc.sign, feat);
-                minError = error;
-                bestIdx = idx;
-            }
-
-            trainData += sampleSize;
-            printf("best weak classifier: %.2f%% %f %d\r", 100.0 * idx / fsize, minError, bestIdx);
-            fflush(stdout);
-        }
-    }
-    printf("                                                       \r");fflush(stdout);
-    printf("best weak classifier id: %d, min error: %f\n", bestIdx, minError);
-
-    fclose(fin);
-
-    return minError;
-}
-
-
 StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &positiveSet,
-            std::list<float *> &negativeSet, std::list<float *> &validateSet, std::vector<Feature *> &featureSet,
-            float minfpr, float maxfnr)
+            std::list<float *> &negativeSet, std::list<float *> &validateSet, std::vector<Feature *> &featureSet, float maxfpr, float maxfnr)
 {
     StrongClassifier *sc = new StrongClassifier;
     std::vector<WeakClassifier*> *wcs = &(sc->wcs);
@@ -274,44 +167,63 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
     int numPos = positiveSet.size();
     int numNeg = negativeSet.size();
     int sampleSize = numPos + numNeg;
-    float *buffer = NULL;
-    long bufferSize, featureSize;
-    FILE *fin;
+    int fsize = featureSet.size();
+
     float cfpr = 1.0;
 
-    assert(sampleSize < MAX_SAMPLE_SIZE);
+    printf("ADABOOST LEARNING maxfpr = %f, maxfnr = %f\n", maxfpr, maxfnr);
 
+    printf("Init weight\n");
     init_weights(&weights, numPos, numNeg);
 
     values = new float[sampleSize];
     memset(values, 0, sizeof(float) * sampleSize);
 
-    memset(sc, 0, sizeof(StrongClassifier));
-
-    //extract_sample_features("tmp_feature.dat", featureSet, positiveSet, negativeSet, width);
-
-    fin = fopen("tmp_feature.dat", "rb");
-    assert(fin != NULL);
-
-    bufferSize = init_feature_buffer_size(featureSet.size(), sampleSize);
-
-    printf("feature size: %ld, buffer size: %ld\n", featureSet.size() * sampleSize, bufferSize);
-
-    buffer = new float[bufferSize];
-    assert(buffer != NULL);
-
-    while(cfpr > minfpr)
+    while(cfpr > maxfpr)
     {
         std::list<float *>::iterator iter;
-        WeakClassifier *bestWC = new WeakClassifier;
-        float minError, beta;
+        float minError = 1, error;
+        WeakClassifier *bestWC = NULL;
 
-        if(fpr(sc, negativeSet, width) == 0)
+        float strongFpr = fpr(sc, negativeSet, width);
+        printf("Strong classifier fpr = %f\n", strongFpr);
+
+        if( strongFpr == 0 && ! empty(sc))
             break;
 
-        minError = select_best_weak_classifier(fin, buffer, bufferSize, featureSet, weights, numPos, numNeg, bestWC);
+        printf("Update weight\n");
+        update_weights(weights, sampleSize);
 
-        beta = minError / (1 - minError);
+        printf("Select best weak classifier\n");
+        for(int i = 0; i < fsize; i++)
+        {
+            Feature *feat = featureSet[i];
+            WeakClassifier *wc = new WeakClassifier;
+            init_weak_classifier(wc, 0, 0, feat);
+
+            iter = positiveSet.begin();
+            for(int j = 0; j < numPos; j++, iter++)
+                values[j] = get_value(feat, *iter, width, 0, 0);
+
+            iter = negativeSet.begin();
+            for(int j = 0; j < numNeg; j++, iter++)
+                values[j + numPos] = get_value(feat, *iter, width, 0, 0);
+
+            error = train(wc, values, numPos, numNeg, weights);
+
+            if(error < minError)
+            {
+                bestWC = wc;
+                minError = error;
+                printf("%f\r", minError);
+                fflush(stdout);
+            }
+            else
+                delete [] wc;
+        }
+        printf("best weak classifier error = %f\n", minError);
+
+        float beta = minError / (1 - minError);
 
         iter = positiveSet.begin();
         for(int i = 0; i < numPos; i++, iter++)
@@ -323,19 +235,18 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
             if(classify(bestWC, *iter, width, 0, 0) != 1)
                 weights[i] *= beta;
 
-        update_weights(weights, sampleSize);
-
         add(sc, bestWC, log(1/beta));
-
+        printf("Train strong classifier\n");
         train(sc, positiveSet, width, maxfnr);
+
         add(cc, sc);
         cfpr = fpr(cc, validateSet, width);
         del(cc);
-
-        printf("Current fpr %f\n", cfpr);
     }
 
-    delete [] buffer;
+    printf("Strong classifier size %ld\n", sc->wcs.size());
+
+    delete [] values;
     delete [] weights;
 
     return sc;
@@ -381,6 +292,11 @@ void print_train_usage(char *proc)
 
 int main_train(int argc, char **argv)
 {
+    for(int i = 0; i < argc; i ++)
+        printf("%s ", argv[i]);
+
+    printf("\n");
+
     char *posSplFile = NULL;
     char *negSplFile = NULL;
     char *modelFile = NULL;
@@ -447,69 +363,56 @@ int main_train(int argc, char **argv)
 
     CascadeClassifier *cc = new CascadeClassifier();
     StrongClassifier* sc;
-    float minfpr = 1.0;
+    float maxfpr = 1.0;
+
+    printf("Init cascade classifier\n");
 
     {
         std::list<StrongClassifier *> scs;
-        printf("Initialize cascade classifier.\n");
         init_cascade_classifier(cc, scs, width, height);
     }
 
+    printf("Generate positive samples and validate samples\n");
+
     {
-        printf("Read positive samples.\n");
+        int nw, nh, nsize;
+
         ret = generate_positive_samples(posSplFile, positiveSet, width, height);
         if(ret == 0) return 1;
 
-        trainnigSampleSize = positiveSet.size();
         fin = fopen(negSplFile, "rb");
-
-        {
-            int w, h, s;
-            ret = fread(&w, sizeof(int), 1, fin);
-            ret = fread(&h, sizeof(int), 1, fin);
-            ret = fread(&s, sizeof(int), 1, fin);
-
-            if(w != width || h != height || s < 2 * trainnigSampleSize)
-            {
-                printf("negative set file format error.\n");
-                return 1;
-            }
-        }
-
         if(ret == 0) return 1;
 
-        printf("Read validate samples.\n");
-        ret = generate_valid_samples(fin, validateSet, width, height, trainnigSampleSize);
+        ret = fread(&nw, 1, sizeof(int), fin);
+        ret = fread(&nh, 1, sizeof(int), fin);
+        ret = fread(&nsize, 1, sizeof(int), fin);
 
-        printf("Generate feature sets.\n");
+        assert(nw == width && nh == height);
+
+        ret = generate_valid_samples(fin, validateSet, width, height, positiveSet.size());
+
         generate_feature_set(featureSet, width, height);
     }
 
-    printf("Initialize the false positive rate of each stage.\n");
+    printf("Init step false positive\n");
 
     init_steps_false_positive(&stepFPR, stage, tarfpr);
+    trainnigSampleSize = positiveSet.size();
 
     for(int i = 0; i < stage; i++)
     {
-        int FP = 0, FN = 0;
-        printf("Generate negative samples\r");
-        fflush(stdout);
+        printf("stage %d\n", i);
 
         ret = generate_negative_samples(fin, negativeSet, width, height, trainnigSampleSize, cc);
 
-        if(ret != trainnigSampleSize) {
-            printf("Can't get enough negative samples\n");
-            break;
-        }
+        if(ret == 0) break;
 
-        minfpr *= stepFPR[i];
+        maxfpr *= stepFPR[i];
 
-        printf("\n---------------Cascade stage %d---------------\n", i);
-        printf("positive sample: %ld\n", positiveSet.size());
-        printf("negative sample: %ld\n", negativeSet.size());
-        printf("max fnr = %f, min fpr = %f\n", maxfnr, minfpr);
+        sc = adaboost_learning(cc, positiveSet, negativeSet, validateSet, featureSet, maxfpr, maxfnr);
 
-        sc = adaboost_learning(cc, positiveSet, negativeSet, validateSet, featureSet, stepFPR[i], maxfnr);
+        printf("Cascade strong classifier\n");
+
         add(cc, sc);
 
         std::list<float*>::iterator iter = positiveSet.begin();
@@ -523,9 +426,12 @@ int main_train(int argc, char **argv)
                 iter++;
                 delete[] (*iterTmp);
                 positiveSet.erase(iterTmp);
-                FN++;
+                iter--;
             }
+            iter++;
         }
+
+        printf("positive sample size %ld\n", positiveSet.size());
 
         iter = negativeSet.begin();
         iterEnd = negativeSet.end();
@@ -538,18 +444,15 @@ int main_train(int argc, char **argv)
                 iter++;
                 delete[] (*iterTmp);
                 negativeSet.erase(iterTmp);
-                FP ++;
+                iter--;
             }
+            iter++;
         }
 
-        printf("fp rate: %.2f%%, fn rate: %.2f%%\n", 100.0 * FN / trainnigSampleSize, 100.0 * FP / trainnigSampleSize);
-        printf("----------------------------------------------\n");
+        printf("negative sample size %ld\n", negativeSet.size());
 
-        trainnigSampleSize = positiveSet.size();
-        exit(0);
     }
 
-    fclose(fin);
     clear_list(positiveSet);
     clear_list(negativeSet);
     clear_list(validateSet);
@@ -586,7 +489,7 @@ int main_generate_samples(int argc, char **argv)
 
     if(flag == 0)
     {
-        FILE *fout = fopen("neg_sample.bin", "wb");
+        FILE *fout = fopen("neg_sample.bin", "w");
         int size = imageList.size();
 
         fwrite(&width, sizeof(int), 1, fout);
@@ -617,9 +520,9 @@ int main_generate_samples(int argc, char **argv)
                     cv::Mat part(img, cv::Rect(x, y, width, height));
                     uchar *data = part.data;
 
-                    for(int j = 0; j < height; j++){
-                        for(int i = 0; i < width; i++)
-                            fdata[i] = data[i] / 255.0;
+                    for(int m = 0; m < height; m++){
+                        for(int n = 0; n < width; n++)
+                            fdata[n] = data[n] / 255.0;
 
                         fwrite(fdata, sizeof(float), width, fout);
                         data += part.step;
@@ -633,7 +536,7 @@ int main_generate_samples(int argc, char **argv)
     }
     else
     {
-        FILE *fout = fopen("pos_sample.bin", "wb");
+        FILE *fout = fopen("pos_sample.bin", "w");
         int size = imageList.size();
         if(size > ssize) size = ssize;
 
