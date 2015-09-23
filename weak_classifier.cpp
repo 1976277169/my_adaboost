@@ -119,3 +119,35 @@ int classify(WeakClassifier *weak, float *img, int stride, int x, int y)
         return -1;
 }
 
+
+void save(WeakClassifier *weak, FILE *fout)
+{
+    assert(fout != NULL);
+
+    fwrite(&weak->thresh, sizeof(float), 1, fout);
+    fwrite(&weak->sign, sizeof(int), 1, fout);
+    fwrite(weak->feat, sizeof(Feature), 1, fout);
+}
+
+
+void load(WeakClassifier **aWeak, FILE *fin)
+{
+    WeakClassifier *weak = new WeakClassifier;
+    int ret = 0;
+    weak->feat = new Feature;
+
+    assert(fin != NULL && weak != NULL && weak->feat != NULL);
+
+    ret = fread(&weak->thresh, sizeof(float), 1, fin);
+    ret = fread(&weak->sign, sizeof(int), 1, fin);
+    ret = fread(weak->feat, sizeof(Feature), 1, fin);
+
+    *aWeak = weak;
+}
+
+
+void clear(WeakClassifier *weak)
+{
+    delete weak->feat;
+    delete weak;
+}

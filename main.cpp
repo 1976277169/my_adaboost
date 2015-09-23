@@ -28,6 +28,7 @@ int generate_positive_samples(const char *fileName, std::list<float *> &positive
 
     int h, w, size, ret;
     int sq = width * height;
+
     ret = fread(&w, sizeof(int), 1, fin);
     ret = fread(&h, sizeof(int), 1, fin);
 
@@ -50,7 +51,8 @@ int generate_positive_samples(const char *fileName, std::list<float *> &positive
             return 0;
         }
 
-        normalize_image(data, width, height);
+
+//        normalize_image(data, width, height);
         positiveSet.push_back(data);
     }
 
@@ -95,7 +97,7 @@ int generate_valid_samples(FILE *fin, std::list<float*> &validateSet, int width,
             return 0;
         }
 
-        normalize_image(data, width, height);
+//        normalize_image(data, width, height);
 
         validateSet.push_back(data);
     }
@@ -129,7 +131,7 @@ int generate_negative_samples(FILE* fin, std::list<float *> &negativeSet, int wi
             return 0;
         }
 
-        normalize_image(data, width, height);
+//        normalize_image(data, width, height);
 
         std::list<float *> tmplist;
         tmplist.push_back(data);
@@ -156,10 +158,10 @@ int generate_negative_samples(FILE* fin, std::list<float *> &negativeSet, int wi
 
 
 StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &positiveSet,
-            std::list<float *> &negativeSet, std::list<float *> &validateSet, std::vector<Feature *> &featureSet, float maxfpr, float maxfnr)
+            std::list<float *> &negativeSet, std::list<float *> &validateSet, std::vector<Feature *> &featureSet,
+            float maxfpr, float maxfnr)
 {
     StrongClassifier *sc = new StrongClassifier;
-    std::vector<WeakClassifier*> *wcs = &(sc->wcs);
 
     int width = cc->WIDTH;
     int height = cc->HEIGHT;
@@ -171,9 +173,8 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
 
     float cfpr = 1.0;
 
-    printf("ADABOOST LEARNING maxfpr = %f, maxfnr = %f\n", maxfpr, maxfnr);
+    printf("maxfpr: %f, maxfnr: %f\n\n", maxfpr, maxfnr);
 
-    printf("Init weight\n");
     init_weights(&weights, numPos, numNeg);
 
     values = new float[sampleSize];
@@ -183,18 +184,18 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
     {
         std::list<float *>::iterator iter;
         float minError = 1, error;
-        WeakClassifier *bestWC = NULL;
+        WeakClassifier *bestWC = new WeakClassifier;
 
-        float strongFpr = fpr(sc, negativeSet, width);
-        printf("Strong classifier fpr = %f\n", strongFpr);
+        if(!empty(sc))
+        {
+            float strongFpr = fpr(sc, negativeSet, width);
+            printf("Strong classifier fpr = %f\n", strongFpr);
+            if(strongFpr == 0)
+                break;
+        }
 
-        if( strongFpr == 0 && ! empty(sc))
-            break;
-
-        printf("Update weight\n");
         update_weights(weights, sampleSize);
 
-        printf("Select best weak classifier\n");
         for(int i = 0; i < fsize; i++)
         {
             Feature *feat = featureSet[i];
@@ -213,14 +214,17 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
 
             if(error < minError)
             {
+                delete [] bestWC;
                 bestWC = wc;
                 minError = error;
+
                 printf("%f\r", minError);
                 fflush(stdout);
             }
             else
                 delete [] wc;
         }
+
         printf("best weak classifier error = %f\n", minError);
 
         float beta = minError / (1 - minError);
@@ -236,15 +240,16 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
                 weights[i] *= beta;
 
         add(sc, bestWC, log(1/beta));
-        printf("Train strong classifier\n");
+
         train(sc, positiveSet, width, maxfnr);
 
         add(cc, sc);
         cfpr = fpr(cc, validateSet, width);
+        printf("fpr validate: %f\n\n", cfpr);
         del(cc);
     }
 
-    printf("Strong classifier size %ld\n", sc->wcs.size());
+    printf("\nWeak classifier size %ld\n", sc->wcs.size());
 
     delete [] values;
     delete [] weights;
@@ -392,16 +397,16 @@ int main_train(int argc, char **argv)
         ret = generate_valid_samples(fin, validateSet, width, height, positiveSet.size());
 
         generate_feature_set(featureSet, width, height);
-    }
 
-    printf("Init step false positive\n");
+        printf("pos size %ld\n", positiveSet.size());
+    }
 
     init_steps_false_positive(&stepFPR, stage, tarfpr);
     trainnigSampleSize = positiveSet.size();
 
     for(int i = 0; i < stage; i++)
     {
-        printf("stage %d\n", i);
+        printf("\n--------------stage %d-----------------\n", i);
 
         ret = generate_negative_samples(fin, negativeSet, width, height, trainnigSampleSize, cc);
 
@@ -410,9 +415,6 @@ int main_train(int argc, char **argv)
         maxfpr *= stepFPR[i];
 
         sc = adaboost_learning(cc, positiveSet, negativeSet, validateSet, featureSet, maxfpr, maxfnr);
-
-        printf("Cascade strong classifier\n");
-
         add(cc, sc);
 
         std::list<float*>::iterator iter = positiveSet.begin();
@@ -428,10 +430,10 @@ int main_train(int argc, char **argv)
                 positiveSet.erase(iterTmp);
                 iter--;
             }
+
             iter++;
         }
 
-        printf("positive sample size %ld\n", positiveSet.size());
 
         iter = negativeSet.begin();
         iterEnd = negativeSet.end();
@@ -446,12 +448,30 @@ int main_train(int argc, char **argv)
                 negativeSet.erase(iterTmp);
                 iter--;
             }
+
             iter++;
         }
 
-        printf("negative sample size %ld\n", negativeSet.size());
 
+        printf("TP: %ld\n", positiveSet.size());
+        printf("FP: %ld\n", negativeSet.size());
+
+        if(negativeSet.size() == trainnigSampleSize)
+        {
+            int nsize = trainnigSampleSize * 0.1;
+
+            for(int n = 0; n < nsize; n++){
+                float *data = negativeSet.front();
+                delete[] data;
+                negativeSet.pop_front();
+            }
+        }
+
+        printf("----------------------------------------\n");
     }
+
+    save(cc, modelFile);
+    clear(cc);
 
     clear_list(positiveSet);
     clear_list(negativeSet);

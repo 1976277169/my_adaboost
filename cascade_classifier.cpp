@@ -20,13 +20,15 @@ void del(CascadeClassifier *cascade)
     cascade->scs.pop_back();
 }
 
+#include <stdio.h>
 
 int classify(CascadeClassifier *cascade, float *img, int stride, int x, int y)
 {
     std::list<StrongClassifier*>::iterator iter = cascade->scs.begin();
     std::list<StrongClassifier*>::iterator iterEnd = cascade->scs.end();
 
-    if(cascade->scs.size() == 0) return 0;
+    if(cascade->scs.size() == 0)
+        return 0;
 
     while(iter != iterEnd){
         if(classify(*iter, img, stride, x, y) == 0)
@@ -68,11 +70,84 @@ float fpr(CascadeClassifier *cascade, std::list<float*> &negSamples, int stride)
 
     while(iter != iterEnd)
     {
-        if(classify(cascade, *iter, stride, 0, 0) == 0)
+        if(classify(cascade, *iter, stride, 0, 0) == 1)
             fp ++;
 
         iter++;
     }
 
     return float(fp) / size;
+}
+
+
+void save(CascadeClassifier *cascade, const char *fileName)
+{
+    FILE *fout = fopen(fileName, "wb");
+
+    if(fout == NULL)
+    {
+        printf("Can't write file %s\n", fileName);
+        return ;
+    }
+
+    int size = cascade->scs.size();
+
+    fwrite(&size, sizeof(int), 1, fout);
+    fwrite(&cascade->WIDTH, sizeof(int), 1, fout);
+    fwrite(&cascade->HEIGHT, sizeof(int), 1, fout);
+
+    std::list<StrongClassifier*>::iterator iter = cascade->scs.begin();
+
+    for(int i = 0; i < size; i++, iter++)
+        save(*iter, fout);
+
+    fclose(fout);
+}
+
+
+void load(CascadeClassifier **aCascade, const char *fileName)
+{
+    FILE *fin = fopen(fileName, "rb");
+    if(fin == NULL)
+    {
+        printf("Can't read file %s\n", fileName);
+        return ;
+    }
+
+    int size;
+
+    fread(&size, sizeof(int), 1, fin);
+
+    CascadeClassifier *cascade = new CascadeClassifier;
+
+    fread(&cascade->WIDTH, sizeof(int), 1, fin);
+    fread(&cascade->HEIGHT, sizeof(int), 1, fin);
+
+    for(int i = 0; i < size; i++)
+    {
+        StrongClassifier *sc;
+        load(&sc, fin);
+
+        cascade->scs.push_back(sc);
+    }
+
+    fclose(fin);
+
+    *aCascade = cascade;
+}
+
+
+void clear(CascadeClassifier *cascade)
+{
+    std::list<StrongClassifier*>::iterator iter = cascade->scs.begin();
+    std::list<StrongClassifier*>::iterator iterEnd = cascade->scs.end();
+
+    while(iter != iterEnd)
+    {
+        clear(*iter);
+    }
+
+    cascade->scs.clear();
+
+    delete cascade;
 }

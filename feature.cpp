@@ -293,3 +293,4 @@ void generate_feature_set(std::vector<Feature*> &featSet, const int WIDTH, const
 
     generate_feature_set_cross(featSet, WIDTH, HEIGHT);
 }
+

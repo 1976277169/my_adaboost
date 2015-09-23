@@ -19,4 +19,8 @@ int classify(CascadeClassifier *cascade, float *img, int stride, int x, int y);
 float fnr(CascadeClassifier *cascade, std::list<float*> &posSamples, int stride);
 float fpr(CascadeClassifier *cascade, std::list<float*> &negSamples, int stride);
 
+void load(CascadeClassifier **aCascade, const char *fileName);
+void save(CascadeClassifier *cascade, const char *fileName);
+void clear(CascadeClassifier *cascade);
+
 #endif

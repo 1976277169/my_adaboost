@@ -55,10 +55,10 @@ float* rotate_90deg(float *img, int width, int height)
 
     for (int y = 0; y < height; y++)
     {
-        int idx1 = height - 1 - y;
+        int idx = height - 1 - y;
 
         for (int x = 0; x < width; x++)
-            img90deg[idx1 + x * height] = ptrImg[x];
+            img90deg[idx + x * height] = ptrImg[x];
         ptrImg += width;
     }
 
@@ -234,3 +234,4 @@ void clear_list(std::list<float*> &set)
 
     set.clear();
 }
+
