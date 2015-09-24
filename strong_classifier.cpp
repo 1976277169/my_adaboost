@@ -158,5 +158,4 @@ void clear(StrongClassifier *sc)
     sc->wcs.clear();
 
     delete sc;
-
 }

@@ -221,6 +221,7 @@ void update_weights(float *weights, int sampleSize)
 
 }
 
+
 void clear_list(std::list<float*> &set)
 {
     std::list<float*>::iterator iter = set.begin();
@@ -228,7 +229,8 @@ void clear_list(std::list<float*> &set)
 
     while(iter != iterEnd)
     {
-        delete[] (*iter);
+        if((*iter) != NULL)
+            delete[] (*iter);
         iter++;
     }
 

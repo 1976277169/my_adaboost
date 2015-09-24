@@ -20,7 +20,6 @@ void del(CascadeClassifier *cascade)
     cascade->scs.pop_back();
 }
 
-#include <stdio.h>
 
 int classify(CascadeClassifier *cascade, float *img, int stride, int x, int y)
 {
@@ -116,12 +115,12 @@ void load(CascadeClassifier **aCascade, const char *fileName)
 
     int size;
 
-    fread(&size, sizeof(int), 1, fin);
+    int ret = fread(&size, sizeof(int), 1, fin);
 
     CascadeClassifier *cascade = new CascadeClassifier;
 
-    fread(&cascade->WIDTH, sizeof(int), 1, fin);
-    fread(&cascade->HEIGHT, sizeof(int), 1, fin);
+    ret = fread(&cascade->WIDTH, sizeof(int), 1, fin);
+    ret = fread(&cascade->HEIGHT, sizeof(int), 1, fin);
 
     for(int i = 0; i < size; i++)
     {
@@ -145,6 +144,7 @@ void clear(CascadeClassifier *cascade)
     while(iter != iterEnd)
     {
         clear(*iter);
+        iter++;
     }
 
     cascade->scs.clear();

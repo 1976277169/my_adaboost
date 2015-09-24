@@ -165,7 +165,9 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
 
     int width = cc->WIDTH;
     int height = cc->HEIGHT;
+
     float *weights = NULL, *values = NULL;
+
     int numPos = positiveSet.size();
     int numNeg = negativeSet.size();
     int sampleSize = numPos + numNeg;
@@ -173,7 +175,6 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
 
     float cfpr = 1.0;
 
-    printf("maxfpr: %f, maxfnr: %f\n\n", maxfpr, maxfnr);
 
     init_weights(&weights, numPos, numNeg);
 
@@ -183,23 +184,23 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
     while(cfpr > maxfpr)
     {
         std::list<float *>::iterator iter;
-        float minError = 1, error;
-        WeakClassifier *bestWC = new WeakClassifier;
+        float minError = 1, error, beta;
+        WeakClassifier *bestWC = NULL;
 
         if(!empty(sc))
         {
             float strongFpr = fpr(sc, negativeSet, width);
-            printf("Strong classifier fpr = %f\n", strongFpr);
             if(strongFpr == 0)
                 break;
         }
 
-        update_weights(weights, sampleSize);
 
         for(int i = 0; i < fsize; i++)
         {
-            Feature *feat = featureSet[i];
+            Feature *feat = new Feature;
             WeakClassifier *wc = new WeakClassifier;
+
+            init_feature(feat, featureSet[i]->type, featureSet[i]->x0, featureSet[i]->y0, featureSet[i]->w, featureSet[i]->h);
             init_weak_classifier(wc, 0, 0, feat);
 
             iter = positiveSet.begin();
@@ -214,39 +215,60 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
 
             if(error < minError)
             {
-                delete [] bestWC;
+                if(bestWC != NULL){
+                    clear(bestWC);
+                    bestWC = NULL;
+                }
+
                 bestWC = wc;
+
                 minError = error;
 
-                printf("%f\r", minError);
+                printf("Select best weak classifier, min error: %f\r", minError);
                 fflush(stdout);
             }
+
             else
                 delete [] wc;
         }
 
-        printf("best weak classifier error = %f\n", minError);
+        printf("best weak classifier error = %f                      \n", minError);
 
-        float beta = minError / (1 - minError);
+        beta = minError / (1 - minError);
 
         iter = positiveSet.begin();
-        for(int i = 0; i < numPos; i++, iter++)
-            if(classify(bestWC, *iter, width, 0, 0) == 1)
+        int tp = 0;
+        for(int i = 0; i < numPos; i++, iter++){
+            if(classify(bestWC, *iter, width, 0, 0) == 1){
                 weights[i] *= beta;
+                tp ++;
+            }
+        }
 
+        int tn = 0;
         iter = negativeSet.begin();
-        for(int i = numPos; i < sampleSize; i++, iter++)
-            if(classify(bestWC, *iter, width, 0, 0) != 1)
+        for(int i = numPos; i < sampleSize; i++, iter++){
+            if(classify(bestWC, *iter, width, 0, 0) != 1){
                 weights[i] *= beta;
+                tn++;
+            }
+        }
+
+        update_weights(weights, sampleSize);
+
+        {
+            float bw = log(1/beta);
+            printf("TP = %d, TN = %d, beta = %f, log(1/beta) = %f\n", tp, tn, beta, log(1/beta));
+        }
 
         add(sc, bestWC, log(1/beta));
-
         train(sc, positiveSet, width, maxfnr);
 
-        add(cc, sc);
-        cfpr = fpr(cc, validateSet, width);
-        printf("fpr validate: %f\n\n", cfpr);
-        del(cc);
+        cfpr = fpr(sc, validateSet, width);
+
+        printf("fpr validate: %f\n", fpr(sc, validateSet, width));
+        printf("fpr negative: %f\n", fpr(sc, negativeSet, width));
+        printf("\n");
     }
 
     printf("\nWeak classifier size %ld\n", sc->wcs.size());
@@ -261,6 +283,7 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
 int main_train(int argc, char **argv);
 int main_detect(int argc, char **argv);
 int main_generate_samples(int argc, char **argv);
+
 
 int main(int argc, char **argv)
 {
@@ -295,13 +318,19 @@ void print_train_usage(char *proc)
 }
 
 
+void print_detect_usage(char *proc)
+{
+    printf("Usage: %s\n", proc);
+    printf("    -m <model file>\n");
+    printf("    --scaleStep <scale step>\n");
+    printf("    --slideStep <slide step>\n");
+    printf("    -i <input image>\n");
+    printf("    -o <output image>\n");
+}
+
+
 int main_train(int argc, char **argv)
 {
-    for(int i = 0; i < argc; i ++)
-        printf("%s ", argv[i]);
-
-    printf("\n");
-
     char *posSplFile = NULL;
     char *negSplFile = NULL;
     char *modelFile = NULL;
@@ -406,7 +435,6 @@ int main_train(int argc, char **argv)
 
     for(int i = 0; i < stage; i++)
     {
-        printf("\n--------------stage %d-----------------\n", i);
 
         ret = generate_negative_samples(fin, negativeSet, width, height, trainnigSampleSize, cc);
 
@@ -414,8 +442,13 @@ int main_train(int argc, char **argv)
 
         maxfpr *= stepFPR[i];
 
+        printf("\n--------------cascade stage %d-----------------\n", i);
+        printf("target false positive rate: %f\n", maxfpr);
+        printf("target false negative rate: %f\n", maxfnr);
+
         sc = adaboost_learning(cc, positiveSet, negativeSet, validateSet, featureSet, maxfpr, maxfnr);
         add(cc, sc);
+//        printf("cascade fpr: %f\n", fpr(cc, negativeSet, width));
 
         std::list<float*>::iterator iter = positiveSet.begin();
         std::list<float*>::iterator iterEnd = positiveSet.end();
@@ -452,9 +485,8 @@ int main_train(int argc, char **argv)
             iter++;
         }
 
-
-        printf("TP: %ld\n", positiveSet.size());
-        printf("FP: %ld\n", negativeSet.size());
+        printf("cascade TP: %ld\n", positiveSet.size());
+        printf("cascade FP: %ld\n", negativeSet.size());
 
         if(negativeSet.size() == trainnigSampleSize)
         {
@@ -468,9 +500,10 @@ int main_train(int argc, char **argv)
         }
 
         printf("----------------------------------------\n");
+
+        save(cc, modelFile);
     }
 
-    save(cc, modelFile);
     clear(cc);
 
     clear_list(positiveSet);
@@ -481,8 +514,139 @@ int main_train(int argc, char **argv)
 }
 
 
+void detect_object(CascadeClassifier *cc, cv::Mat &img, float scaleStep, float slideStep, std::vector<cv::Rect> &rects)
+{
+    cv::Mat gray;
+    int width = img.cols;
+    int height = img.rows;
+
+    int WIDTH = cc->WIDTH;
+    int HEIGHT = cc->HEIGHT;
+
+    int baseW = WIDTH;//scaleStep;
+    int baseH = HEIGHT;//scaleStep;
+
+    printf("%d %d\n", baseW, baseH);
+
+    if(img.channels() == 3)
+        cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
+    else
+        gray = img.clone();
+
+    float *data = new float[WIDTH * HEIGHT];
+
+    for(int i = 0; i < 6; i++)
+    {
+        int dy = baseW * slideStep;
+        int dx = baseH * slideStep;
+
+        int dw = width - baseW;
+        int dh = height - baseH;
+
+        for(int y = 0; y < dh; y += dy)
+        {
+            for(int x = 0; x < dw; x+= dx)
+            {
+                cv::Mat part(gray, cv::Rect(x, y, baseW, baseH));
+                cv::resize(part, part, cv::Size(WIDTH, HEIGHT));
+
+//                cv::imshow("part", part);
+//                cv::waitKey();
+
+                uchar *pImg = part.data;
+                float *pData = data;
+
+                for(int j = 0; j < HEIGHT; j++)
+                {
+                    for(int i = 0; i < WIDTH; i++)
+                        pData[i] = pImg[i] / 255.0;
+
+                    pData += WIDTH;
+                    pImg += part.step;
+                }
+
+                integral_image(data, WIDTH, HEIGHT);
+
+                if(classify(cc, data, WIDTH, 0, 0) == 1)
+                    rects.push_back(cv::Rect(x, y, baseW, baseH));
+            }
+        }
+
+        baseW *= scaleStep;
+        baseH *= scaleStep;
+
+        printf("%d\n", i);
+    }
+
+    delete[] data;
+}
+
+
 int main_detect(int argc, char **argv)
 {
+    char *modelFile = NULL;
+    float scaleStep = 0.0f;
+    float slideStep = 0.0f;
+
+    char *iImgName = NULL;
+    char *oImgName = NULL;
+
+    if(argc < 11)
+    {
+        print_detect_usage(argv[0]);
+        return 0;
+    }
+
+    for(int i = 1; i < argc; i++)
+    {
+        if(strcmp(argv[i], "-m") == 0)
+            modelFile = argv[++i];
+
+        else if(strcmp(argv[i], "--scaleStep") == 0)
+            scaleStep = atof(argv[++i]);
+
+        else if(strcmp(argv[i], "--slideStep") == 0)
+            slideStep = atof(argv[++i]);
+
+        else if(strcmp(argv[i], "-i") == 0)
+            iImgName = argv[++i];
+
+        else if(strcmp(argv[i], "-o") == 0)
+            oImgName = argv[++i];
+
+        else {
+            print_detect_usage(argv[0]);
+            return 1;
+        }
+    }
+
+
+    cv::Mat img = cv::imread(iImgName, 1);
+    CascadeClassifier *cc;
+    load(&cc, modelFile);
+
+    std::vector<cv::Rect> rects;
+
+    detect_object(cc, img, scaleStep, slideStep, rects);
+
+    clear(cc);
+
+    int size = rects.size();
+
+    printf("object size %d\n", size);
+
+    for(int i = 0; i < size; i++)
+    {
+        cv::rectangle(img, rects[i], cv::Scalar(0, 0, 255));
+    }
+
+    cv::imshow("img", img);
+    cv::waitKey();
+
+    if(!cv::imwrite(oImgName, img))
+    {
+        printf("Can't write image %s\n", oImgName);
+    }
 
     return 0;
 }
