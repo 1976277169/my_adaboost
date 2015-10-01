@@ -11,8 +11,9 @@ IMPLEMENT_QSORT(sort_arr_float_descend, float, BG)
 
 int read_image_list(const char *fileName, std::vector<std::string> &imageList)
 {
-    FILE *fp = fopen(fileName, "r");
     char line[512];
+    FILE *fp = fopen(fileName, "r");
+    
     if(fp == NULL)
     {
         printf("Can't read file %s.\n", fileName);
@@ -226,28 +227,8 @@ void init_weights(float **weights, int numPos, int numNeg)
 
 void update_weights(float *weights, int numPos, int numNeg)
 {
-    /*
-    float sumPos = 0, sumNeg = 0;
-
-    for(int i = 0; i < numPos; i++)
-        sumPos += weights[i];
-
-    for(int i = 0; i < numNeg; i++)
-        sumNeg += weights[i + numPos];
-
-    sumPos *= 0.5;
-    sumNeg *= 0.5;
-
-    for(int i = 0; i < numPos; i++)
-        weights[i] /= sumPos;
-
-    for(int i = 0; i < numNeg; i++)
-        weights[i + numPos] /= sumNeg;
-    */
-
+    float sum = 0; 
     int sampleSize = numPos + numNeg;
-
-    float sum = 0;
 
     for(int i = 0; i < sampleSize; i++)
         sum += weights[i];

@@ -24,6 +24,7 @@ float fnr(StrongClassifier *sc, std::list<float*> &posSamples, int stride);
 float fpr(StrongClassifier *sc, std::list<float*> &negSamples, int stride);
 
 int empty(StrongClassifier *sc);
+
 void load(StrongClassifier **asc, FILE *fin);
 void save(StrongClassifier *sc, FILE* fout);
 void clear(StrongClassifier *sc);

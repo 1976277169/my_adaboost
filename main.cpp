@@ -14,64 +14,53 @@
 //#define ADD_MIRROR_SAMPLE
 //#define ADD_ROTATE_SAMPLE
 
-int generate_positive_samples(const char *fileName, std::list<float *> &positiveSet, int width, int height)
+int generate_positive_samples(FILE *fin, std::list<float*> &positiveSet, int width, int height, int size)
 {
-    FILE *fin = fopen(fileName, "r");
+    assert(fin != NULL);
 
-    if(fin == NULL){
-        printf("Can't open file %s\n", fileName);
-        return 0;
-    }
-
-    int h, w, size, ret;
+    int ret;
     int sq = width * height;
+    int count = size - positiveSet.size();
 
-    ret = fread(&w, sizeof(int), 1, fin);
-    ret = fread(&h, sizeof(int), 1, fin);
-
-    if(w != width || h != height)
-    {
-        printf("Sample resolution error\n");
-        return 0;
-    }
-
-    ret = fread(&size, sizeof(int), 1, fin);
-
-    for(int i = 0; i < size; i++)
+    for(int i = 0; i < count; i++)
     {
         float *data = new float[sq];
+
         ret = fread(data, sizeof(float), sq, fin);
 
-        if(ret == 0)
-        {
-            delete[] data;
+        if(ret == 0){
+            printf("Can't read enough positive samples\n");
+            delete []data;
             return 0;
         }
 
-//        normalize_image_npd(data, width, height);
-//        show_image(data, width, height);
-
-//        normalize_image(data, width, height);
         positiveSet.push_back(data);
-    }
-
 
 #ifdef ADD_ROTATE_SAMPLE
-    add_rotated_images(positiveSet, size, width, height);
-#endif
+        {
+            float *t = rotate_90deg(data, width, height);
+            integral_image(t, width, height);
+            positiveSet.push_back(t);
 
+            t = rotate_180deg(data, width, height);
+            integral_image(t, width, height);
+            positiveSet.push_back(t);
+
+            t = rotate_270deg(data, width, height);
+            integral_image(t, width, height);
+            positiveSet.push_back(t);
+        }
+#endif
 
 #ifdef ADD_MIRROR_SAMPLE
-    add_vertical_mirror(positiveSet, size, width, height);
+        {
+            float *t = vertical_mirror(data, width, height);
+            integral_image(t, width, height);
+            positiveSet.push_back(t);
+        }
 #endif
 
-    std::list<float *>::iterator iter = positiveSet.begin();
-    std::list<float *>::iterator iterEnd = positiveSet.end();
-
-    while(iter != iterEnd)
-    {
-        integral_image((*iter), width, height);
-        iter ++;
+        integral_image(data, width, height);
     }
 
     return positiveSet.size();
@@ -96,19 +85,8 @@ int generate_valid_samples(FILE *fin, std::list<float*> &validateSet, int width,
             return 0;
         }
 
-//        show_image(data, width, height);
-//        normalize_image(data, width, height);
-
+        integral_image(data, width, height);
         validateSet.push_back(data);
-    }
-
-    std::list<float *>::iterator iter = validateSet.begin();
-    std::list<float *>::iterator iterEnd = validateSet.end();
-
-    while(iter != iterEnd)
-    {
-        integral_image((*iter), width, height);
-        iter ++;
     }
 
     return validateSet.size();
@@ -121,29 +99,37 @@ int generate_negative_samples(FILE* fin, std::list<float *> &negativeSet, int wi
 
     while(negativeSet.size() < size)
     {
-        float *data = new float[sq];
-        int ret = fread(data, sizeof(float), sq, fin);
-
-        if(ret == 0)
-        {
-            printf("Can't read enough negative samples\n");
-            delete[] data;
-            return 0;
-        }
-
-//        normalize_image(data, width, height);
 
         std::list<float *> tmplist;
-        tmplist.push_back(data);
+        std::list<float*>::iterator iter, iterEnd;
 
-        std::list<float*>::iterator iter = tmplist.begin();
-        std::list<float*>::iterator iterEnd = tmplist.end();
+        int count = size - negativeSet.size();
+
+        for(int i = 0; i < count; i++)
+        {
+            float *data = new float[sq];
+            int ret = fread(data, sizeof(float), sq, fin);
+
+            if(ret == 0)
+            {
+                printf("Can't read enough negative samples\n");
+                delete[] data;
+                return 0;
+            }
+
+            integral_image(data, width, height);
+            tmplist.push_back(data);
+        }
+
+        iter = tmplist.begin();
+        iterEnd = tmplist.end();
 
         while(iter != iterEnd)
         {
-            integral_image(*iter, width, height);
+
             if(classify(cc, *iter, width, 0, 0) == 0)
                 negativeSet.push_back(*iter);
+
             else
                 delete[] (*iter);
 
@@ -183,7 +169,7 @@ void select_feature(std::vector<Feature*> &featureSet,
     assert(count > 1);
 
 #ifdef SHOW_FEATURE
-    FILE *fout = fopen("tmp.txt", "w");
+    FILE *fout = fopen("feature.txt", "w");
 #endif
 
     for(int i = 0; i < count; i++)
@@ -206,9 +192,11 @@ void select_feature(std::vector<Feature*> &featureSet,
             }
 
             float error = train(wc, values, 100, 100, weights);
+
 #ifdef SHOW_FEATURE
             fprintf(fout, "%d %2d %2d %2d %2d %f\n", featureSet[j]->type, featureSet[j]->x0, featureSet[j]->y0, featureSet[j]->w, featureSet[j]->h, error);
 #endif
+
             if(error < 0.3){
                 featureSet[top++] = featureSet[j];
             }
@@ -231,9 +219,12 @@ void select_feature(std::vector<Feature*> &featureSet,
         fflush(stdout);
     }
 
+    printf("Fine weak classifier size: %ld        \n", featureSet.size());
+
 #ifdef SHOW_FEATURE
     fclose(fout);
 #endif
+
     delete[] values;
     delete[] weights;
 }
@@ -388,8 +379,10 @@ void print_train_usage(char *proc)
     printf("    -Y <sample height>\n");
     printf("    --false_alarm_rate <target false alarm rate>\n");
     printf("    --missing_rate <max missing rate>\n");
-    printf("    --pos <pos sample>\n");
-    printf("    --neg <neg sample>\n");
+    printf("    --pos <positive sample set file>\n");
+    printf("    --numPos <number of positive sample used to train\n");
+    printf("    --neg <negative sample set file>\n");
+    printf("    --numNeg <number of negative sample used to train\n");
     printf("    -m <output model file>\n");
 }
 
@@ -412,13 +405,13 @@ int main_train(int argc, char **argv)
     char *modelFile = NULL;
 
     int stage = 15;
-    int width = 0;
-    int height = 0;
+    int width = 0, height = 0;
+    int numPos = 0, numNeg = 0;
 
     float tarfpr = 0.05;
     float maxfnr = 0.05;
 
-    if((argc - 1) / 2 != 8)
+    if((argc - 1) / 2 != 10)
     {
         print_train_usage(argv[0]);
         return 1;
@@ -450,6 +443,12 @@ int main_train(int argc, char **argv)
         else if(strcmp(argv[i], "-m") == 0)
             modelFile = argv[++i];
 
+        else if(strcmp(argv[i], "--numPos"))
+            numPos = atoi(argv[++i]);
+
+        else if(strcmp(argv[i], "--numNeg"))
+            numNeg = atoi(argv[++i]);
+
         else
         {
             printf("Can't recognize params %s\n", argv[i]);
@@ -458,13 +457,13 @@ int main_train(int argc, char **argv)
         }
     }
 
-    if(posSplFile == NULL || negSplFile == NULL || width == 0 || height == 0){
+    if(posSplFile == NULL || negSplFile == NULL || width == 0 || height == 0 || numPos <= 0 || numNeg <= 0){
         print_train_usage(argv[0]);
         return 1;
     }
 
     std::list<float *> positiveSet, negativeSet, validateSet;
-    FILE *fin;
+    FILE *nfin, *pfin;
     int ret;
     std::vector<Feature*> featureSet;
     float *stepFPR;
@@ -472,7 +471,7 @@ int main_train(int argc, char **argv)
     CascadeClassifier *cc = new CascadeClassifier();
     StrongClassifier* sc;
     float maxfpr = 1.0;
-    int numPos, numNeg;
+
 
     printf("Init cascade classifier\n");
 
@@ -486,57 +485,75 @@ int main_train(int argc, char **argv)
     {
         int nw, nh, nsize;
 
-        ret = generate_positive_samples(posSplFile, positiveSet, width, height);
-        if(ret == 0) return 1;
-        numPos = positiveSet.size();
-        numNeg = numPos;
+        pfin = fopen(posSplFile, "rb");
+        if(pfin == NULL)
+        {
+            printf("Can't open file %s\n", posSplFile);
+            return 2;
+        }
+        ret = fread(&nw, 1, sizeof(int), pfin);
+        ret = fread(&nh, 1, sizeof(int), pfin);
+        ret = fread(&nsize, 1, sizeof(int), pfin);
 
-        fin = fopen(negSplFile, "rb");
-        if(ret == 0) return 1;
+        assert(nw == width && nh == height && nsize > numPos);
 
-        ret = fread(&nw, 1, sizeof(int), fin);
-        ret = fread(&nh, 1, sizeof(int), fin);
-        ret = fread(&nsize, 1, sizeof(int), fin);
+        ret = generate_positive_samples(pfin, positiveSet, width, height, numPos);
 
-        assert(nw == width && nh == height);
+        if(ret == 0)
+            return 3;
 
-        ret = generate_valid_samples(fin, validateSet, width, height, numPos * 3);
-
-        printf("Validate sample size: %ld\n", validateSet.size());
-
-        generate_feature_set(featureSet, width, height);
-
-        printf("Positive sample size %ld\n", positiveSet.size());
     }
+
+    {
+        int nw, nh, nsize;
+
+        nfin = fopen(negSplFile, "rb");
+        if(nfin == NULL)
+        {
+            printf("Can't open file %s\n", negSplFile);
+            return 2;
+        }
+
+        ret = fread(&nw, 1, sizeof(int), nfin);
+        ret = fread(&nh, 1, sizeof(int), nfin);
+        ret = fread(&nsize, 1, sizeof(int), nfin);
+
+        assert(nw == width && nh == height && nsize > numNeg * 10);
+
+        ret = generate_valid_samples(nfin, validateSet, width, height, numNeg * 3);
+
+        if(ret == 0)
+            return 3;
+    }
+
+    printf("Positive sample size: %d\n", numPos);
+    printf("Negative sample size: %d\n", numNeg);
+    printf("Validate sample size: %ld\n", validateSet.size());
+
+    generate_feature_set(featureSet, width, height);
+    select_feature(featureSet, positiveSet, validateSet, width);
 
     init_steps_false_positive(&stepFPR, stage, tarfpr);
 
-#ifdef SHOW_FEATURE
-    print_feature_list(featureSet, "feature_set.txt");
-#endif
-    select_feature(featureSet, positiveSet, validateSet, width);
-
-#ifdef SHOW_FEATURE
-    print_feature_list(featureSet, "fine_feature_set.txt");
-#endif
-
-    printf("Fine weak classifier size %ld        \n", featureSet.size());
-
     for(int i = 0; i < stage; i++)
     {
+        printf("\n--------------cascade stage %d-----------------\n", i+1);
+
+        int correctSize = 0;
+
         std::list<float*>::iterator iter, iterEnd;
 
-        ret = generate_negative_samples(fin, negativeSet, width, height, numNeg, cc);
-
+        ret = generate_positive_samples(pfin, positiveSet, width, height, numPos);
         if(ret == 0) break;
+
+        ret = generate_negative_samples(nfin, negativeSet, width, height, numNeg, cc);
+        if(ret == 0) break;
+
 
         maxfpr *= stepFPR[i];
 
-        printf("\n--------------cascade stage %d-----------------\n", i+1);
         printf("Target false positive rate: %f\n", maxfpr);
         printf("Target false negative rate: %f\n", maxfnr);
-        printf("Positive sample size: %d\n", numPos);
-        printf("Negative sample size: %d\n", numNeg);
 
         sc = adaboost_learning(cc, positiveSet, negativeSet, validateSet, featureSet, maxfpr, maxfnr);
         add(cc, sc);
@@ -558,8 +575,22 @@ int main_train(int argc, char **argv)
             iter++;
         }
 
-        numPos = positiveSet.size();
+        correctSize = positiveSet.size();
+        printf("cascade TP: %d\n", correctSize);
 
+/*
+        correctSize -= 0.95 * numPos;
+        if(correctSize > 0)
+        {
+            for(int n = 0; n < correctSize; n++)
+            {
+                float *t = positiveSet.front();
+                delete [] t;
+                positiveSet.pop_front();
+            }
+        }
+
+*/
         iter = negativeSet.begin();
         iterEnd = negativeSet.end();
 
@@ -577,25 +608,22 @@ int main_train(int argc, char **argv)
             iter++;
         }
 
-        //numPos = positiveSet.size();
-        numNeg = negativeSet.size();
 
-        printf("cascade TP: %d\n", numPos);
-        printf("cascade FP: %d\n", numNeg);
+        correctSize = negativeSet.size();
+        printf("cascade FP: %d\n", correctSize);
 
+        correctSize -= 0.8 * numNeg;
 
-        if(numNeg >= numPos * 0.9)
+        if(correctSize > 0)
         {
-            int nsize = numNeg - numPos * 0.9;
 
-            for(int n = 0; n < nsize; n++){
-                float *data = negativeSet.front();
-                delete[] data;
+            for(int n = 0; n < correctSize; n++)
+            {
+                float *t = negativeSet.front();
+                delete [] t;
                 negativeSet.pop_front();
             }
         }
-
-        numNeg = numPos;
 
         printf("----------------------------------------\n");
 
@@ -606,6 +634,8 @@ int main_train(int argc, char **argv)
 #endif
     }
 
+    fclose(pfin);
+    fclose(nfin);
     clear(cc);
 
     clear_list(positiveSet);

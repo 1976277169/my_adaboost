@@ -181,9 +181,11 @@ int read_image_list(const char *fileName, std::vector<std::string> &imageList);
 
 void normalize_image(float *img, int width, int height);
 void normalize_image_npd(float *img, int width, int height);
+
 float* rotate_90deg(float *img, int width, int height);
 float* rotate_180deg(float *img, int width, int height);
 float* rotate_270deg(float *img, int width, int height);
+
 float* vertical_mirror(float *img, int width, int height);
 
 void add_rotated_images(std::list<float*> &set, int size, int width, int height);
@@ -193,7 +195,6 @@ void integral_image(float *img, int width, int height);
 
 void init_steps_false_positive(float **Fi, int step, float targetFPR);
 void init_weights(float **weights, int numPos, int numNeg);
-
 void update_weights(float *weights, int numPos, int numNeg);
 
 void clear_list(std::list<float*> &set);
