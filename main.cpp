@@ -9,7 +9,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-
+#include <time.h>
 
 //#define ADD_MIRROR_SAMPLE
 //#define ADD_ROTATE_SAMPLE
@@ -535,6 +535,7 @@ int main_train(int argc, char **argv)
 
     init_steps_false_positive(&stepFPR, stage, tarfpr);
 
+    time_t start = clock();
     for(int i = 0; i < stage; i++)
     {
         printf("\n--------------cascade stage %d-----------------\n", i+1);
