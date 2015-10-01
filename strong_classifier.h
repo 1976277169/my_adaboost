@@ -28,4 +28,5 @@ void load(StrongClassifier **asc, FILE *fin);
 void save(StrongClassifier *sc, FILE* fout);
 void clear(StrongClassifier *sc);
 
+void print_feature(StrongClassifier *sc);
 #endif

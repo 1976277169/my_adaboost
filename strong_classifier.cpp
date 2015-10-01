@@ -27,6 +27,7 @@ void train(StrongClassifier *sc, std::list<float *> &posSamples, int stride, flo
     int size = posSamples.size();
     float *scores = new float[size];
     int idx = maxfnr * size;
+    int wcsSize = sc->wcs.size();
 
     assert(0 <= maxfnr && maxfnr < 1);
 
@@ -34,7 +35,6 @@ void train(StrongClassifier *sc, std::list<float *> &posSamples, int stride, flo
 
     for(int i = 0; i < size; i++, iter++)
     {
-        int wcsSize = sc->wcs.size();
         scores[i] = 0;
 
         for(int j = 0; j < wcsSize; j++)
@@ -158,4 +158,17 @@ void clear(StrongClassifier *sc)
     sc->wcs.clear();
 
     delete sc;
+}
+
+
+void print_feature(StrongClassifier *sc)
+{
+    int size = sc->wcs.size();
+
+    for(int i = 0; i < size; i++)
+    {
+        Feature * feat = sc->wcs[i]->feat;
+
+        printf("%d %2d %2d %2d %2d\n", feat->type, feat->x0, feat->y0, feat->w, feat->h);
+    }
 }

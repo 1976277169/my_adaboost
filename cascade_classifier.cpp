@@ -151,3 +151,16 @@ void clear(CascadeClassifier *cascade)
 
     delete cascade;
 }
+
+
+void print_feature(CascadeClassifier *cc)
+{
+    std::list<StrongClassifier*>::iterator iter = cc->scs.begin();
+    int size = cc->scs.size();
+
+    for(int i = 0; i < size; i++, iter++)
+    {
+        print_feature(*iter);
+        printf("\n");
+    }
+}

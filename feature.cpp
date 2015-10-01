@@ -79,7 +79,7 @@ float get_value(Feature *f, float *img, int stride, int x, int y)
  * width step 2
  * height step 1
  ****************************************************/
-void generate_feature_set_type_vertical_2(std::vector<Feature*> &featSet, const int WIDTH, const int HEIGHT)
+static void generate_feature_set_type_vertical_2(std::vector<Feature*> &featSet, const int WIDTH, const int HEIGHT)
 {
     int minWidth = 4;
     int height = 4;
@@ -267,7 +267,7 @@ static void generate_feature_set_cross(std::vector<Feature*> &featSet, const int
                 while(x + width <= WIDTH)
                 {
                     Feature *f = new Feature;
-                    init_feature(f, HORIZONTAL_3, x, y, width, height);
+                    init_feature(f, CROSS, x, y, width, height);
                     featSet.push_back(f);
 
                     x++;
@@ -294,3 +294,13 @@ void generate_feature_set(std::vector<Feature*> &featSet, const int WIDTH, const
     generate_feature_set_cross(featSet, WIDTH, HEIGHT);
 }
 
+
+void clear_features(std::vector<Feature*> &featSet)
+{
+    int size = featSet.size();
+
+    for(int i = 0; i < size; i++)
+        delete featSet[i];
+
+    featSet.clear();
+}

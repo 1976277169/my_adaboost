@@ -5,6 +5,8 @@
 #include <vector>
 #include <string>
 #include <list>
+#include "feature.h"
+
 
 
 #define SWAP(x,y, type) {type tmp = (x); (x) = (y); (y) = (tmp);}
@@ -178,6 +180,7 @@ void sort_arr_float_descend(float *arr, int total_num);
 int read_image_list(const char *fileName, std::vector<std::string> &imageList);
 
 void normalize_image(float *img, int width, int height);
+void normalize_image_npd(float *img, int width, int height);
 float* rotate_90deg(float *img, int width, int height);
 float* rotate_180deg(float *img, int width, int height);
 float* rotate_270deg(float *img, int width, int height);
@@ -191,7 +194,16 @@ void integral_image(float *img, int width, int height);
 void init_steps_false_positive(float **Fi, int step, float targetFPR);
 void init_weights(float **weights, int numPos, int numNeg);
 
-void update_weights(float *weights, int sampleSize);
+void update_weights(float *weights, int numPos, int numNeg);
 
 void clear_list(std::list<float*> &set);
+void print_feature_list(std::vector<Feature *> &featureSet, const char *fileName);
+
+
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
+void show_image(float *data, int width, int height);
+
 #endif

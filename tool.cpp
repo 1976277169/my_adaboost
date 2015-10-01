@@ -48,6 +48,21 @@ void normalize_image(float *img, int width, int height)
 }
 
 
+void normalize_image_npd(float *img, int width, int height)
+{
+    float mean = 0;
+    int size = width * height;
+
+    for(int i = 0; i < size; i++)
+        mean += img[i];
+
+    mean /= size;
+
+    for(int i = 0; i < size; i++)
+        img[i] = (mean - img[i]) / (mean + img[i] + 0.00001);
+}
+
+
 float* rotate_90deg(float *img, int width, int height)
 {
     float *img90deg = new float[width*height];
@@ -209,16 +224,36 @@ void init_weights(float **weights, int numPos, int numNeg)
 }
 
 
-void update_weights(float *weights, int sampleSize)
+void update_weights(float *weights, int numPos, int numNeg)
 {
-    float weightSum = 0;
+    /*
+    float sumPos = 0, sumNeg = 0;
+
+    for(int i = 0; i < numPos; i++)
+        sumPos += weights[i];
+
+    for(int i = 0; i < numNeg; i++)
+        sumNeg += weights[i + numPos];
+
+    sumPos *= 0.5;
+    sumNeg *= 0.5;
+
+    for(int i = 0; i < numPos; i++)
+        weights[i] /= sumPos;
+
+    for(int i = 0; i < numNeg; i++)
+        weights[i + numPos] /= sumNeg;
+    */
+
+    int sampleSize = numPos + numNeg;
+
+    float sum = 0;
 
     for(int i = 0; i < sampleSize; i++)
-        weightSum += weights[i];
+        sum += weights[i];
 
     for(int i = 0; i < sampleSize; i++)
-        weights[i] /= weightSum;
-
+        weights[i] /= sum;
 }
 
 
@@ -237,3 +272,30 @@ void clear_list(std::list<float*> &set)
     set.clear();
 }
 
+
+void print_feature_list(std::vector<Feature *> &featureSet, const char *fileName)
+{
+    long size = featureSet.size();
+    std::vector<Feature*>::iterator iter = featureSet.begin();
+
+    FILE *fout = fopen(fileName, "w");
+    assert(fout != NULL);
+
+    for(long i = 0; i < size; i++, iter++)
+    {
+        Feature *feat = *iter;
+
+        fprintf(fout, "%d %2d %2d %2d %2d\n", feat->type, feat->x0, feat->y0, feat->w, feat->h);
+    }
+
+    fclose(fout);
+}
+
+
+void show_image(float *data, int width, int height)
+{
+    cv::Mat img(height, width, CV_32FC1, data);
+
+    cv::imshow("img", img);
+    cv::waitKey();
+}

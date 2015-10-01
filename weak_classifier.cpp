@@ -23,16 +23,20 @@ void init_weak_classifier(WeakClassifier *weak, float thresh, int sign, Feature 
 float train(WeakClassifier *weak, float *value, int posSize, int negSize, float *weights)
 {
     int sampleSize = posSize + negSize;
+
     Scores *scores = new Scores[sampleSize];
+
     float *wp = new float[sampleSize];
     float *wn = new float[sampleSize];
+
     float tp, tn;
 
     float minError = 1;
     float errorPos = 0;
     float errorNeg = 0;
 
-    int i;
+    int i, j;
+
 
     for(i = 0; i < posSize; i++)
     {
@@ -81,16 +85,25 @@ float train(WeakClassifier *weak, float *value, int posSize, int negSize, float 
 
     for(i = 0; i < sampleSize; i++)
     {
+        for(j = i + 1; j < sampleSize; j++)
+        {
+            if(scores[i].value != scores[j].value)
+                break;
+        }
+
+        i = j - 1;
+
         errorPos = wp[i] + tn - wn[i];
         errorNeg = wn[i] + tp - wp[i];
 
-        if(errorPos < errorNeg && errorPos < minError)
+        //printf("value: %f, errorPos: %f, errorNeg: %f\n", scores[i].value, errorPos, errorNeg);
+        if(errorPos < minError && errorPos < errorNeg)
         {
             minError = errorPos;
             weak->sign = 1;
             weak->thresh = scores[i].value;
         }
-        else if(errorNeg < errorPos && errorNeg < minError)
+        else if(errorNeg < minError && errorNeg < errorPos)
         {
             minError = errorNeg;
             weak->sign = 0;
@@ -150,4 +163,5 @@ void clear(WeakClassifier *weak)
 {
     delete weak->feat;
     delete weak;
+    weak = NULL;
 }
