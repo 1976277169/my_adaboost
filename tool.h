@@ -5,7 +5,7 @@
 #include <vector>
 #include <string>
 #include <list>
-#include "feature.h"
+#include <time.h>
 
 
 
@@ -198,7 +198,6 @@ void init_weights(float **weights, int numPos, int numNeg);
 void update_weights(float *weights, int numPos, int numNeg);
 
 void clear_list(std::list<float*> &set);
-void print_feature_list(std::vector<Feature *> &featureSet, const char *fileName);
 
 
 #include <opencv2/core/core.hpp>
@@ -206,5 +205,14 @@ void print_feature_list(std::vector<Feature *> &featureSet, const char *fileName
 #include <opencv2/highgui/highgui.hpp>
 
 void show_image(float *data, int width, int height);
+void print_time(clock_t t);
+
+typedef struct {
+    int idx;
+    float value;
+} PairF;
+
+void sort_arr_pair(PairF *array, int total_num);
+void sort_arr_pair_idx(PairF *array, int total_num);
 
 #endif

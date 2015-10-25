@@ -29,5 +29,7 @@ void load(StrongClassifier **asc, FILE *fin);
 void save(StrongClassifier *sc, FILE* fout);
 void clear(StrongClassifier *sc);
 
+#ifdef USE_HAAR_FEATURE
 void print_feature(StrongClassifier *sc);
+#endif
 #endif

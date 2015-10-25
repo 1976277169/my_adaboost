@@ -161,6 +161,7 @@ void clear(StrongClassifier *sc)
 }
 
 
+#ifdef USE_HAAR_FEATURE
 void print_feature(StrongClassifier *sc)
 {
     int size = sc->wcs.size();
@@ -172,3 +173,4 @@ void print_feature(StrongClassifier *sc)
         printf("%d %2d %2d %2d %2d\n", feat->type, feat->x0, feat->y0, feat->w, feat->h);
     }
 }
+#endif

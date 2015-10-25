@@ -153,6 +153,7 @@ void clear(CascadeClassifier *cascade)
 }
 
 
+#ifdef USE_HAAR_FEATURE
 void print_feature(CascadeClassifier *cc)
 {
     std::list<StrongClassifier*>::iterator iter = cc->scs.begin();
@@ -164,3 +165,4 @@ void print_feature(CascadeClassifier *cc)
         printf("\n");
     }
 }
+#endif

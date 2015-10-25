@@ -18,6 +18,16 @@ void init_feature(Feature *f, int type, int x, int y, int width, int height)
 }
 
 
+void init_feature(Feature* dstFeat, Feature *srcFeat)
+{
+    dstFeat->type = srcFeat->type;
+    dstFeat->x0 = srcFeat->x0;
+    dstFeat->y0 = srcFeat->y0;
+    dstFeat->w = srcFeat->w;
+    dstFeat->h = srcFeat->h;
+}
+
+
 float get_value(Feature *f, float *img, int stride, int x, int y)
 {
     int x0 = x + f->x0;
@@ -35,6 +45,7 @@ float get_value(Feature *f, float *img, int stride, int x, int y)
             lef = BLOCK_SUM(img, stride, x0, y0, dx, h);
             rig = BLOCK_SUM(img, stride, x0 + dx, y0, dx, h);
 
+//            return (lef - rig) / (lef + rig + 0.000001);
             return lef - rig;
 
         case HORIZONTAL_2:
@@ -42,6 +53,7 @@ float get_value(Feature *f, float *img, int stride, int x, int y)
             top = BLOCK_SUM(img, stride, x0, y0, w, dy);
             bot = BLOCK_SUM(img, stride, x0, y0 + dy, w, dy);
 
+//            return (top - bot) / (top + bot + 0.000001);
             return top - bot;
 
         case VERTICAL_3:
@@ -50,6 +62,7 @@ float get_value(Feature *f, float *img, int stride, int x, int y)
             cen = BLOCK_SUM(img, stride, x0 + dx, y0, dx, h);
             rig = BLOCK_SUM(img, stride, x0 + 2 * dx, y0, dx, h);
 
+//            return (cen - lef - rig) / (cen + lef + rig + 0.000001);
             return cen - lef - rig;
 
         case HORIZONTAL_3:
@@ -58,12 +71,21 @@ float get_value(Feature *f, float *img, int stride, int x, int y)
             cen = BLOCK_SUM(img, stride, x0, y0 + dy, w, dy);
             bot = BLOCK_SUM(img, stride, x0, y0 + 2 * dy, w, dy);
 
+//            return (cen - top - bot) / (cen + lef + rig + 0.000001);
             return cen - top - bot;
 
         case CROSS:
             dx = w >> 1;
             dy = h >> 1;
-
+/*
+            {
+                 float t1 = BLOCK_SUM(img, stride, x0, y0, dx, dy) +
+                    BLOCK_SUM(img, stride, x0 + dx, y0 + dy, dx, dy);
+                 float t2 = BLOCK_SUM(img, stride, x0 + dx, y0, dx, dy) +
+                    BLOCK_SUM(img, stride, x0, y0 + dy, dx, dy);
+                 return (t1 - t2) / (t1 + t2 + 0.000001);
+            }
+*/
             return (BLOCK_SUM(img, stride, x0, y0, dx, dy) +
                     BLOCK_SUM(img, stride, x0 + dx, y0 + dy, dx, dy) -
                     BLOCK_SUM(img, stride, x0 + dx, y0, dx, dy) -
@@ -303,4 +325,23 @@ void clear_features(std::vector<Feature*> &featSet)
         delete featSet[i];
 
     featSet.clear();
+}
+
+
+void print_feature_list(std::vector<Feature *> &featureSet, const char *fileName)
+{
+    long size = featureSet.size();
+    std::vector<Feature*>::iterator iter = featureSet.begin();
+
+    FILE *fout = fopen(fileName, "w");
+    assert(fout != NULL);
+
+    for(long i = 0; i < size; i++, iter++)
+    {
+        Feature *feat = *iter;
+
+        fprintf(fout, "%d %2d %2d %2d %2d\n", feat->type, feat->x0, feat->y0, feat->w, feat->h);
+    }
+
+    fclose(fout);
 }

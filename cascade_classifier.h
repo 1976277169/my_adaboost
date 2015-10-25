@@ -22,6 +22,8 @@ float fpr(CascadeClassifier *cascade, std::list<float*> &negSamples, int stride)
 void load(CascadeClassifier **aCascade, const char *fileName);
 void save(CascadeClassifier *cascade, const char *fileName);
 void clear(CascadeClassifier *cascade);
+#ifdef USE_HAAR_FEATURE
 void print_feature(CascadeClassifier *cc);
+#endif
 
 #endif

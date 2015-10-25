@@ -5,15 +5,19 @@
 
 #define LT(a, b) (a < b)
 #define BG(a, b) (a > b)
+#define LT_PAIR_V(a, b) ((a).value < (b).value)
+#define LT_PAIR_I(a, b) ((a).idx < (b).idx)
 
 IMPLEMENT_QSORT(sort_arr_float_ascend, float, LT)
 IMPLEMENT_QSORT(sort_arr_float_descend, float, BG)
+IMPLEMENT_QSORT(sort_arr_pair, PairF, LT_PAIR_V)
+IMPLEMENT_QSORT(sort_arr_pair_idx, PairF, LT_PAIR_I)
 
 int read_image_list(const char *fileName, std::vector<std::string> &imageList)
 {
     char line[512];
     FILE *fp = fopen(fileName, "r");
-    
+
     if(fp == NULL)
     {
         printf("Can't read file %s.\n", fileName);
@@ -227,7 +231,7 @@ void init_weights(float **weights, int numPos, int numNeg)
 
 void update_weights(float *weights, int numPos, int numNeg)
 {
-    float sum = 0; 
+    float sum = 0;
     int sampleSize = numPos + numNeg;
 
     for(int i = 0; i < sampleSize; i++)
@@ -254,29 +258,26 @@ void clear_list(std::list<float*> &set)
 }
 
 
-void print_feature_list(std::vector<Feature *> &featureSet, const char *fileName)
-{
-    long size = featureSet.size();
-    std::vector<Feature*>::iterator iter = featureSet.begin();
-
-    FILE *fout = fopen(fileName, "w");
-    assert(fout != NULL);
-
-    for(long i = 0; i < size; i++, iter++)
-    {
-        Feature *feat = *iter;
-
-        fprintf(fout, "%d %2d %2d %2d %2d\n", feat->type, feat->x0, feat->y0, feat->w, feat->h);
-    }
-
-    fclose(fout);
-}
-
-
 void show_image(float *data, int width, int height)
 {
     cv::Mat img(height, width, CV_32FC1, data);
 
     cv::imshow("img", img);
     cv::waitKey();
+}
+
+
+void print_time(clock_t t)
+{
+    long sec, min, hour;
+
+    sec = t / CLOCKS_PER_SEC;
+
+    min = sec / 60;
+    sec %= 60;
+
+    hour = min / 60;
+    min %= 60;
+
+    printf("%02ld:%02ld:%02ld", hour, sec, min);
 }

@@ -1,7 +1,15 @@
 #ifndef _WEAK_CLASSIFIER_H_
 #define _WEAK_CLASSIFIER_H_
 
+#define USE_HAAR_FEATURE
+
+#if defined(USE_HAAR_FEATURE)
 #include "feature.h"
+
+#else
+#include "feature.h"
+
+#endif
 
 
 typedef struct {
