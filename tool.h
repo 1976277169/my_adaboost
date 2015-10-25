@@ -215,4 +215,5 @@ typedef struct {
 void sort_arr_pair(PairF *array, int total_num);
 void sort_arr_pair_idx(PairF *array, int total_num);
 
+void merge_rect(std::vector<cv::Rect> &rects);
 #endif

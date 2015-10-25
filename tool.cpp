@@ -281,3 +281,61 @@ void print_time(clock_t t)
 
     printf("%02ld:%02ld:%02ld", hour, sec, min);
 }
+
+
+void merge_rect(std::vector<cv::Rect> &rects)
+{
+    int size = rects.size();
+    int *flags = NULL;
+    if(size == 0)
+        return;
+    flags = new int[size];
+
+    memset(flags, 0, sizeof(int) * size);
+
+    for(int i = 0; i < size; i++)
+    {
+        int xi0 = rects[i].x;
+        int yi0 = rects[i].y;
+        int xi1 = rects[i].x + rects[i].width - 1;
+        int yi1 = rects[i].y + rects[i].height - 1;
+
+        int cix = (xi0 + xi1) / 2;
+        int ciy = (yi0 + yi1) / 2;
+        int sqi = rects[i].width * rects[i].height;
+
+        for(int j = i + 1; j < size; j++)
+        {
+            int xj0 = rects[j].x;
+            int yj0 = rects[j].y;
+            int xj1 = rects[j].x + rects[j].width - 1;
+            int yj1 = rects[j].y + rects[j].height - 1;
+
+            int cjx = (xj0 + xj1) / 2;
+            int cjy = (yj0 + yj1) / 2;
+
+            int sqj = rects[j].width * rects[j].height;
+
+            if ( ( (xi0 <= cjx && cjx <= xi1) && (yi0 <= cjy && cjy <= yi1) ) ||
+                   ( (xj0 <= cix && cix <= xj1) && (yj0 <= ciy && ciy <= yj1) ) )
+            {
+                if(sqj > sqi)
+                    flags[i] = 1;
+                else
+                    flags[j] = 1;
+
+            }
+        }
+    }
+
+    std::vector<cv::Rect> tmp;
+
+    for(int i = 0; i < size; i++)
+        if(flags[i] == 0)
+            tmp.push_back(rects[i]);
+
+    rects = tmp;
+
+    delete []flags;
+}
+

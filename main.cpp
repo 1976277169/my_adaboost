@@ -19,6 +19,7 @@ float * mat_to_float(cv::Mat &img)
 {
     int w = img.cols;
     int h = img.rows;
+
     float *data = new float[w * h];
     float *pdata = data;
 
@@ -80,6 +81,7 @@ int generate_positive_samples(const char *imgListFile, std::list<float*> &positi
 void generate_validate_samples(std::vector<std::string> &imgList, int WIDTH, int HEIGHT, std::list<float*> &validateSet, int size)
 {
     assert(size < imgList.size());
+
     if(validateSet.size() > 0)
         clear_list(validateSet);
 
@@ -87,6 +89,13 @@ void generate_validate_samples(std::vector<std::string> &imgList, int WIDTH, int
     {
         cv::Mat img = cv::imread(imgList[i], 0);
         cv::Mat sImg;
+
+        if(img.empty())
+        {
+            printf("Can't open image %s\n", imgList[i].c_str());
+            exit(0);
+        }
+
         cv::resize(img, sImg, cv::Size(WIDTH, HEIGHT));
 
         float *data = mat_to_float(sImg);
@@ -97,7 +106,6 @@ void generate_validate_samples(std::vector<std::string> &imgList, int WIDTH, int
 
         validateSet.push_back(data);
     }
-
 }
 
 
@@ -196,29 +204,32 @@ void select_feature(std::vector<Feature*> &featureSet,
 
     int numPos = positiveSet.size();
     int numNeg = negativeSet.size();
+    int fsize = featureSet.size();
 
     int sampleSize = numPos + numNeg;
 
     float *values = new float[sampleSize];
     float *weights = new float[sampleSize];
 
+    PairF *pairs = new PairF[fsize];
+    assert(pairs != NULL);
+
     std::list<float *>::iterator iterPos, iterNeg;
+
+    assert(numPos == numNeg);
     for(int i = 0; i < sampleSize; i++)
         weights[i] = 1.0 / sampleSize;
 
-    iterPos = positiveSet.begin();
-    iterNeg = negativeSet.begin();
-
-
-    int fsize = featureSet.size();
-
-    PairF *pairs = new PairF[fsize];
 
     for(int j = 0; j < fsize; j++)
     {
         int k = 0;
-        init_weak_classifier(wc, 0, 0, featureSet[j]);
+        float error;
 
+        iterPos = positiveSet.begin();
+        iterNeg = negativeSet.begin();
+
+        init_weak_classifier(wc, 0, 0, featureSet[j]);
 
         for(k = 0; k < numPos; k++, iterPos++)
             values[k] = get_value(featureSet[j], *iterPos, width, 0, 0);
@@ -226,7 +237,7 @@ void select_feature(std::vector<Feature*> &featureSet,
         for(; k < sampleSize; k++, iterNeg ++)
             values[k] = get_value(featureSet[j], *iterNeg, width, 0, 0);
 
-        float error = train(wc, values, numPos, numNeg, weights);
+        error = train(wc, values, numPos, numNeg, weights);
 
         pairs[j].idx = j;
         pairs[j].value = error;
@@ -257,6 +268,8 @@ void select_feature(std::vector<Feature*> &featureSet,
 
     printf("Fine weak classifier size: %ld\n", featureSet.size());
 
+    delete wc;
+    delete[] pairs;
     delete[] values;
     delete[] weights;
 }
@@ -524,8 +537,8 @@ int main_train(int argc, char **argv)
     printf("GENERATE VALIDATE SAMPLES\n");
     generate_validate_samples(negImgList, width, height, validateSet, numPos);
 
-    printf("Positive sample size: %d\n", numPos);
-    printf("Negative sample size: %d\n", numNeg);
+    printf("Positive sample size: %ld\n", positiveSet.size());
+    printf("Negative sample size: %ld\n", negativeSet.size());
     printf("Validate sample size: %d\n", numVal);
 
     printf("GENERATE FEATURE TEMPLATE\n");
@@ -611,7 +624,7 @@ int main_train(int argc, char **argv)
             iter++;
         }
 
-        printf("cascade FP: %ld\n", correctSize - negativeSet.size());
+        printf("cascade TN: %ld\n", correctSize - negativeSet.size());
 
         iter = validateSet.begin();
         iterEnd = validateSet.end();
@@ -656,6 +669,7 @@ int main_train(int argc, char **argv)
 
     return 0;
 }
+
 
 
 void detect_object2(CascadeClassifier *cc, cv::Mat &img, float startScale, float endScale, int layers, float offsetFactor, std::vector<cv::Rect> &rects)
@@ -732,76 +746,6 @@ void detect_object2(CascadeClassifier *cc, cv::Mat &img, float startScale, float
 }
 
 
-void detect_object(CascadeClassifier *cc, cv::Mat &img, float scaleStep, float slideStep, std::vector<cv::Rect> &rects)
-{
-    cv::Mat gray;
-    int width = img.cols;
-    int height = img.rows;
-
-    int WIDTH = cc->WIDTH;
-    int HEIGHT = cc->HEIGHT;
-
-    int baseW = WIDTH;//scaleStep;
-    int baseH = HEIGHT;//scaleStep;
-
-
-    if(img.channels() == 3)
-        cv::cvtColor(img, gray, cv::COLOR_BGR2GRAY);
-    else
-        gray = img.clone();
-
-    float *data = new float[WIDTH * HEIGHT];
-
-    for(int i = 0; i < 5; i++)
-    {
-        int dy = baseW * slideStep;
-        int dx = baseH * slideStep;
-
-        int dw = width - baseW;
-        int dh = height - baseH;
-
-        for(int y = 0; y < dh; y += dy)
-        {
-            for(int x = 0; x < dw; x+= dx)
-            {
-                cv::Mat part(gray, cv::Rect(x, y, baseW, baseH));
-                cv::resize(part, part, cv::Size(WIDTH, HEIGHT));
-
-//                cv::imshow("part", part);
-//                cv::waitKey();
-
-                uchar *pImg = part.data;
-                float *pData = data;
-
-                for(int j = 0; j < HEIGHT; j++)
-                {
-                    for(int i = 0; i < WIDTH; i++)
-                        pData[i] = pImg[i] / 255.0;
-
-                    pData += WIDTH;
-                    pImg += part.step;
-                }
-
-//                normalize_image_npd(data, WIDTH, HEIGHT);
-#ifdef USE_HAAR_FEATURE
-                integral_image(data, WIDTH, HEIGHT);
-#endif
-
-                if(classify(cc, data, WIDTH, 0, 0) == 1)
-                    rects.push_back(cv::Rect(x, y, baseW, baseH));
-            }
-        }
-
-        baseW *= scaleStep;
-        baseH *= scaleStep;
-
-        printf("%d\n", i);
-    }
-
-    delete[] data;
-}
-
-
 int main_detect(int argc, char **argv)
 {
     char *modelFile = NULL;
@@ -847,8 +791,8 @@ int main_detect(int argc, char **argv)
 
     std::vector<cv::Rect> rects;
 
-//    detect_object(cc, img, scaleStep, slideStep, rects);
     detect_object2(cc, img, 0.4, 1.0, 5, slideStep, rects);
+    merge_rect(rects);
 
     clear(cc);
 

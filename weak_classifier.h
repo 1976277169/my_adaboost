@@ -6,6 +6,9 @@
 #if defined(USE_HAAR_FEATURE)
 #include "feature.h"
 
+#elif defined(USE_NPD_FEATURE)
+#include "npd_feature.h"
+
 #else
 #include "feature.h"
 
