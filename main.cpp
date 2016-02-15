@@ -25,8 +25,7 @@ float * mat_to_float(cv::Mat &img)
 
     uchar *pImg = img.data;
 
-    for(int y = 0; y < h; y++)
-    {
+    for(int y = 0; y < h; y++){
         for(int x = 0; x < w; x++)
             pdata[x] = pImg[x] / 255.0;
 
@@ -38,18 +37,13 @@ float * mat_to_float(cv::Mat &img)
 }
 
 
-int generate_positive_samples(const char *imgListFile, std::list<float*> &positiveSet, const int WIDTH, const int HEIGHT, int size)
+int generate_positive_samples(const char *imgListFile, std::list<float*> &positiveSet, const int WIDTH, const int HEIGHT)
 {
     std::vector<std::string> imgList;
     int ret;
 
     ret = read_image_list(imgListFile, imgList);
-
-    if(imgList.size() < size)
-    {
-        printf("Can't get enough positive samples\n");
-        return 1;
-    }
+    int size = imgList.size();
 
     for(int i = 0; i < size; i++)
     {
@@ -149,8 +143,6 @@ int read_neg_sample_from_file(std::vector<std::string> &imgList, int WIDTH, int 
                 if(sImg.empty())
                     return 0;
 
-                printf("           %s\r", imgList[curIdx].c_str());
-                fflush(stdout);
                 curIdx++;
             }
             else
@@ -197,81 +189,21 @@ int generate_negative_samples(std::vector<std::string> &imgList, int WIDTH, int 
 }
 
 
-void select_feature(std::vector<Feature*> &featureSet,
-        std::list<float*> &positiveSet, std::list<float *> &negativeSet, int width)
-{
-    WeakClassifier *wc = new WeakClassifier;
+void select_feature(std::vector<Feature*> &featureSet, int featDim, std::vector<Feature*> &fineFeats){
+    cv::RNG rng(cv::getTickCount());
 
-    int numPos = positiveSet.size();
-    int numNeg = negativeSet.size();
-    int fsize = featureSet.size();
+    int size = featureSet.size();
+    int len = size / featDim;
 
-    int sampleSize = numPos + numNeg;
+    fineFeats.resize(featDim);
 
-    float *values = new float[sampleSize];
-    float *weights = new float[sampleSize];
-
-    PairF *pairs = new PairF[fsize];
-    assert(pairs != NULL);
-
-    std::list<float *>::iterator iterPos, iterNeg;
-
-    assert(numPos == numNeg);
-    for(int i = 0; i < sampleSize; i++)
-        weights[i] = 1.0 / sampleSize;
-
-
-    for(int j = 0; j < fsize; j++)
-    {
-        int k = 0;
-        float error;
-
-        iterPos = positiveSet.begin();
-        iterNeg = negativeSet.begin();
-
-        init_weak_classifier(wc, 0, 0, featureSet[j]);
-
-        for(k = 0; k < numPos; k++, iterPos++)
-            values[k] = get_value(featureSet[j], *iterPos, width, 0, 0);
-
-        for(; k < sampleSize; k++, iterNeg ++)
-            values[k] = get_value(featureSet[j], *iterNeg, width, 0, 0);
-
-        error = train(wc, values, numPos, numNeg, weights);
-
-        pairs[j].idx = j;
-        pairs[j].value = error;
-
-        printf("%.2f%%\r", j * 100.0 / fsize);
-        fflush(stdout);
+    int count = featDim - 1;
+    for(int i = 0; i < count; i++){
+        int idx = rng.uniform(i * len, (i+1) * len);
+        fineFeats[i] = featureSet[idx];
     }
 
-    int psize = 40000;
-    assert(psize < fsize);
-
-    sort_arr_pair(pairs, fsize);
-    sort_arr_pair_idx(pairs, psize);
-    sort_arr_pair_idx(pairs, fsize - psize);
-
-    std::vector<Feature *> finFeats;
-
-    for(int i = 0; i < psize; i++)
-        finFeats.push_back(featureSet[pairs[i].idx]);
-
-    for(int i = psize; i < fsize; i++)
-        delete featureSet[pairs[i].idx];
-
-    featureSet.clear();
-
-    featureSet = finFeats;
-    finFeats.clear();
-
-    printf("Fine weak classifier size: %ld\n", featureSet.size());
-
-    delete wc;
-    delete[] pairs;
-    delete[] values;
-    delete[] weights;
+    fineFeats[count] = featureSet[rng.uniform(count * len, size)];
 }
 
 
@@ -435,146 +367,146 @@ void print_detect_usage(char *proc)
 }
 
 
-int main_train(int argc, char **argv)
+int WINW = 48, WINH = 48, STAGE = 5;
+
+float FALSE_ALARM_RATE = 0.05;
+float MISSING_RATE = 0.05;
+float NP_RATE = 1.0;
+
+char POS_LIST_FILE[128], NEG_LIST_FILE[128];
+
+int read_config(char *fileName)
 {
-    char *posSplFile = NULL;
-    char *negSplFile = NULL;
-    char *modelFile = NULL;
-
-    int stage = 15;
-    int width = 0, height = 0;
-    int numPos = 0, numNeg = 0;
-    const int numVal = 400;
-
-    float tarfpr = 0.05;
-    float maxfnr = 0.05;
-
-    std::vector<std::string> negImgList;
-
-    if((argc - 1) / 2 != 10)
-    {
-        print_train_usage(argv[0]);
+    FILE *fin = fopen(fileName, "r");
+    if(fin == NULL){
+        printf("Can't open file %s\n", fileName);
         return 1;
     }
 
-    for(int i = 1; i < argc; i++)
-    {
-        if(strcmp(argv[i], "--stage") == 0)
-            stage = atoi(argv[++i]);
+    char line[8192];
+    char confIterm[][40] = {"WIDTH", "HEIGHT", "STAGE", "FALSE_ALARM_RATE", "MISSING_RATE", "POS_LIST", "NEG_LIST", "NP_RATE"};
 
-        else if(strcmp(argv[i], "-X") == 0)
-            width = atoi(argv[++i]);
+    while(fgets(line, 8191, fin) != NULL){
+        char name[128], value[20];
+        sscanf(line, "%s %s", name, value);
 
-        else if(strcmp(argv[i], "-Y") == 0)
-            height = atoi(argv[++i]);
-
-        else if(strcmp(argv[i], "--false_alarm_rate") == 0)
-            tarfpr = atof(argv[++i]);
-
-        else if(strcmp(argv[i], "--missing_rate") == 0)
-            maxfnr = atof(argv[++i]);
-
-        else if(strcmp(argv[i], "--pos") == 0)
-            posSplFile = argv[++i];
-
-        else if(strcmp(argv[i], "--neg") == 0)
-            negSplFile = argv[++i];
-
-        else if(strcmp(argv[i], "-m") == 0)
-            modelFile = argv[++i];
-
-        else if(strcmp(argv[i], "--numPos"))
-            numPos = atoi(argv[++i]);
-
-        else if(strcmp(argv[i], "--numNeg"))
-            numNeg = atoi(argv[++i]);
-
-        else
-        {
-            printf("Can't recognize params %s\n", argv[i]);
-            print_train_usage(argv[0]);
-            return 1;
+        if(strcmp(name, confIterm[0]) == 0){
+            WINW = atoi(value);
+        }
+        else if(strcmp(name, confIterm[1]) == 0){
+            WINH = atoi(value);
+        }
+        else if(strcmp(name, confIterm[2]) == 0){
+            STAGE = atoi(value);
+        }
+        else if(strcmp(name, confIterm[3]) == 0){
+            FALSE_ALARM_RATE = atof(value);
+        }
+        else if(strcmp(name, confIterm[4]) == 0){
+            MISSING_RATE = atof(value);
+        }
+        else if(strcmp(name, confIterm[5]) == 0){
+            strcpy(POS_LIST_FILE, value);
+        }
+        else if(strcmp(name, confIterm[6]) == 0){
+            strcpy(NEG_LIST_FILE, value);
+        }
+        else if(strcmp(name, confIterm[7]) == 0){
+            NP_RATE = atof(value);
+        }
+        else {
         }
     }
 
-    if(posSplFile == NULL || negSplFile == NULL || width == 0 || height == 0 || numPos <= 0 || numNeg <= 0){
-        print_train_usage(argv[0]);
+    return 0;
+}
+
+int main_train(int argc, char **argv)
+{
+    if(argc < 3){
+        printf("Usage: %s [configuration] [model]\n", argv[0]);
         return 1;
     }
 
-    std::list<float *> positiveSet, negativeSet, validateSet;
-    int ret;
-    std::vector<Feature*> featureSet;
-    float *stepFPR;
-    float npRatio = 1.0 * numNeg / numPos;
+    int ret = read_config(argv[1]);
+    if(ret != 0) return 1;
+    char *modelFile = argv[2];
 
+    std::vector<std::string> negImgList;
+    std::list<float *> positiveSet, negativeSet, validateSet;
+    std::vector<Feature*> featureSet, fineFeatSet;
+    float *stepFPR;
+
+    int numPos, numNeg, numVal;
     CascadeClassifier *cc = new CascadeClassifier();
     StrongClassifier* sc;
     float maxfpr = 1.0;
+    float maxfnr = MISSING_RATE;
 
     std::list<StrongClassifier *> scs;
-    init_cascade_classifier(cc, scs, width, height);
+    init_cascade_classifier(cc, scs, WINW, WINH);
 
     printf("GENERATE POSITIVE SAMPLES\n");
-    ret = generate_positive_samples(posSplFile, positiveSet, width, height, numPos);
+    ret = generate_positive_samples(POS_LIST_FILE, positiveSet, WINW, WINH);
     if(ret != 0) return 2;
 
     printf("GENERATE NEGATIVE SAMPLES\n");
-    read_image_list(negSplFile, negImgList);
+    read_image_list(NEG_LIST_FILE, negImgList);
+
+    numPos = positiveSet.size();
+    numNeg = numPos * NP_RATE;
 
     for(int i = 0; i < numNeg; i ++)
     {
         float *data = NULL;
-        read_neg_sample_from_file(negImgList, width, height, &data);
+        read_neg_sample_from_file(negImgList, WINW, WINH, &data);
 
 #ifdef USE_HAAR_FEATURE
-        integral_image(data, width, height);
+        integral_image(data, WINW, WINH);
 #endif
         negativeSet.push_back(data);
     }
 
 
     printf("GENERATE VALIDATE SAMPLES\n");
-    generate_validate_samples(negImgList, width, height, validateSet, numPos);
+    generate_validate_samples(negImgList, WINW, WINH, validateSet, numPos);
 
+    numVal = validateSet.size();
     printf("Positive sample size: %ld\n", positiveSet.size());
     printf("Negative sample size: %ld\n", negativeSet.size());
     printf("Validate sample size: %d\n", numVal);
 
     printf("GENERATE FEATURE TEMPLATE\n");
-    generate_feature_set(featureSet, width, height);
+    generate_feature_set(featureSet, WINW, WINH);
 
-    printf("SELECT FEATURE TEMPLATE\n");
-    select_feature(featureSet, positiveSet, validateSet, width);
-
-    init_steps_false_positive(&stepFPR, stage, tarfpr);
+    init_steps_false_positive(&stepFPR, STAGE, FALSE_ALARM_RATE);
 
     clock_t startTime = clock();
     char outname[128];
 
-    for(int i = 0; i < stage; i++)
-    {
+    for(int i = 0; i < STAGE; i++){
         printf("\n--------------cascade stage %d-----------------\n", i+1);
 
         int correctSize = 0;
 
         std::list<float*>::iterator iter, iterEnd;
 
-        numNeg = numPos * npRatio;
+        numNeg = numPos * NP_RATE;
         printf("READ NEGATIVE SAMPLES\n");
-        ret = generate_negative_samples(negImgList, width, height, cc, negativeSet, numNeg);
+        ret = generate_negative_samples(negImgList, WINW, WINH, cc, negativeSet, numNeg);
         if(ret != numNeg) {
             printf("Can't generate enough negatvie samples %d:%d\n", ret, numNeg);
             break;
         }
 
         printf("READ VALIDATE SAMPLES\n");
-        ret = generate_negative_samples(negImgList, width, height, cc, validateSet, numVal);
+        ret = generate_negative_samples(negImgList, WINW, WINH, cc, validateSet, numVal);
         if(ret != numVal) {
             printf("Can't generate enough validate samples %d:%d\n", ret, numVal);
             break;
         }
 
+        select_feature(featureSet, 2000, fineFeatSet);
         maxfpr *= stepFPR[i];
 
         printf("Positive sample size: %d\n", numPos);
@@ -582,7 +514,7 @@ int main_train(int argc, char **argv)
         printf("Target false positive rate: %f\n", maxfpr);
         printf("Target false negative rate: %f\n", maxfnr);
 
-        sc = adaboost_learning(cc, positiveSet, numPos, negativeSet, numNeg, validateSet, featureSet, maxfpr, maxfnr);
+        sc = adaboost_learning(cc, positiveSet, numPos, negativeSet, numNeg, validateSet, fineFeatSet, maxfpr, maxfnr);
         add(cc, sc);
 
         iter = positiveSet.begin();
@@ -590,7 +522,7 @@ int main_train(int argc, char **argv)
 
         while(iter != iterEnd)
         {
-            if(classify(cc, *iter, width, 0, 0) == 0)
+            if(classify(cc, *iter, WINW, 0, 0) == 0)
             {
                 std::list<float*>::iterator iterTmp = iter;
                 iter++;
@@ -612,7 +544,7 @@ int main_train(int argc, char **argv)
 
         while(iter != iterEnd)
         {
-            if(classify(cc, *iter, width, 0, 0) == 0)
+            if(classify(cc, *iter, WINW, 0, 0) == 0)
             {
                 std::list<float*>::iterator iterTmp = iter;
                 iter++;
@@ -630,7 +562,7 @@ int main_train(int argc, char **argv)
         iterEnd = validateSet.end();
         while(iter != iterEnd)
         {
-            if(classify(cc, *iter, width, 0, 0) == 0)
+            if(classify(cc, *iter, WINW, 0, 0) == 0)
             {
                 std::list<float*>::iterator iterTmp = iter;
                 iter++;
@@ -800,8 +732,7 @@ int main_detect(int argc, char **argv)
 
     printf("object size %d\n", size);
 
-    for(int i = 0; i < size; i++)
-    {
+    for(int i = 0; i < size; i++){
         cv::rectangle(img, rects[i], cv::Scalar(255, 0, 0), 2);
     }
 

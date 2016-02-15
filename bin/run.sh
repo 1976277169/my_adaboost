@@ -2,7 +2,7 @@ rm model.dat
 rm model/*
 let WIDTH=48
 let HEIGHT=32
-let TRAIN_SAMPLE_SIZE=2300
+let TRAIN_SAMPLE_SIZE=950
 MAX_FPR=0.0005
 MAX_FNR=0.005
 let STAGE=4
