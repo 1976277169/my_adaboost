@@ -7,10 +7,9 @@
 #include <list>
 #include <time.h>
 
-
-
-#define SWAP(x,y, type) {type tmp = (x); (x) = (y); (y) = (tmp);}
-#define MIN(i,j)   (((i) > (j)) ? (j) : (i))
+#define HU_SWAP(x,y, type) {type tmp = (x); (x) = (y); (y) = (tmp);}
+#define HU_MIN(i,j)   (((i) > (j)) ? (j) : (i))
+#define HU_MAX(i,j)   (((i) < (j)) ? (j) : (i))
 
 #define IMPLEMENT_QSORT(function_name, T, LT)                                   \
     void function_name( T *array, int total_num)                                        \
@@ -48,7 +47,7 @@
                 for( ptr = left + 1; ptr <= right; ptr++ )                          \
                 {                                                                   \
                     for( ptr2 = ptr; ptr2 > left && LT(ptr2[0],ptr2[-1]); ptr2--)   \
-                    SWAP( ptr2[0], ptr2[-1], T);                            \
+                    HU_SWAP( ptr2[0], ptr2[-1], T);                            \
                 }                                                                   \
                 break;                                                              \
             }                                                                       \
@@ -89,7 +88,7 @@
                 : (LT(*c, *b) ? b : (LT(*a, *c) ? a : c));       \
                 if( pivot != left0 )                                                \
                 {                                                                   \
-                    SWAP( *pivot, *left0, T );                                  \
+                    HU_SWAP( *pivot, *left0, T );                                  \
                     pivot = left0;                                                  \
                 }                                                                   \
                 left = left1 = left0 + 1;                                           \
@@ -102,7 +101,7 @@
                         if( !LT(*left, *pivot) )                                    \
                         {                                                           \
                             if( left > left1 )                                      \
-                            SWAP( *left1, *left, T );                       \
+                            HU_SWAP( *left1, *left, T );                       \
                             swap_cnt = 1;                                           \
                             left1++;                                                \
                         }                                                           \
@@ -114,7 +113,7 @@
                         if( !LT(*pivot, *right) )                                   \
                         {                                                           \
                             if( right < right1 )                                    \
-                            SWAP( *right1, *right, T);                      \
+                            HU_SWAP( *right1, *right, T);                      \
                             swap_cnt = 1;                                           \
                             right1--;                                               \
                         }                                                           \
@@ -123,7 +122,7 @@
                     \
                     if( left > right )                                              \
                     break;                                                      \
-                    SWAP( *left, *right, T );                                   \
+                    HU_SWAP( *left, *right, T );                                   \
                     swap_cnt = 1;                                                   \
                     left++;                                                         \
                     right--;                                                        \
@@ -135,13 +134,13 @@
                     goto insert_sort_##func_name;                                   \
                 }                                                                   \
                 \
-                n = MIN( (int)(left1 - left0), (int)(left - left1) );           \
+                n = HU_MIN( (int)(left1 - left0), (int)(left - left1) );           \
                 for( i = 0; i < n; i++ )                                            \
-                SWAP( left0[i], left[i-n], T );                             \
+                HU_SWAP( left0[i], left[i-n], T );                             \
                 \
-                n = MIN( (int)(right0 - right1), (int)(right1 - right) );       \
+                n = HU_MIN( (int)(right0 - right1), (int)(right1 - right) );       \
                 for( i = 0; i < n; i++ )                                            \
-                SWAP( left[i], right0[i-n+1], T );                          \
+                HU_SWAP( left[i], right0[i-n+1], T );                          \
                 n = (int)(left - left1);                                            \
                 m = (int)(right1 - right);                                          \
                 if( n > 1 )                                                         \

@@ -72,120 +72,108 @@ int generate_positive_samples(const char *imgListFile, std::list<float*> &positi
 }
 
 
-void generate_validate_samples(std::vector<std::string> &imgList, int WIDTH, int HEIGHT, std::list<float*> &validateSet, int size)
-{
-    assert(size < imgList.size());
+const float MAX_SCALE_FACTOR = 7.0;
+const float OR = 0.2;
 
-    if(validateSet.size() > 0)
-        clear_list(validateSet);
+float SC = 1.0f;
+int IDX = 0;
 
-    for(int i = 0 ; i < size; i++)
-    {
-        cv::Mat img = cv::imread(imgList[i], 0);
-        cv::Mat sImg;
-
-        if(img.empty())
-        {
-            printf("Can't open image %s\n", imgList[i].c_str());
-            exit(0);
-        }
-
-        cv::resize(img, sImg, cv::Size(WIDTH, HEIGHT));
-
-        float *data = mat_to_float(sImg);
-
-#ifdef USE_HAAR_FEATURE
-        integral_image(data, WIDTH, HEIGHT);
-#endif
-
-        validateSet.push_back(data);
-    }
-}
-
-
-int read_neg_sample_from_file(std::vector<std::string> &imgList, int WIDTH, int HEIGHT, float **res)
-{
-    static float scaleFactor = 0.8;
-    static cv::Point oriPt(0, 0);
-    static cv::Size offset(8, 8);
-    static int curIdx = 0;
-    static cv::Mat sImg;
-
-    *res = NULL;
-
-    while(1)
-    {
-        if(oriPt.y + HEIGHT < sImg.rows)
-        {
-            if(oriPt.x + WIDTH < sImg.cols)
-            {
-                cv::Mat img(sImg, cv::Rect(oriPt, cv::Size(WIDTH, HEIGHT)));
-
-                *res = mat_to_float(img);
-
-                oriPt.x += offset.width;
-                return 1;
-            }
-            else
-            {
-                oriPt = cv::Point(0, oriPt.y + offset.height);
-            }
-        }
-        else{
-
-            if(sImg.cols < WIDTH || sImg.rows < HEIGHT)
-            {
-                if(curIdx >= imgList.size())
-                    return 0;
-
-                sImg = cv::imread(imgList[curIdx], 0);
-
-                if(sImg.empty())
-                    return 0;
-
-                curIdx++;
-            }
-            else
-                cv::resize(sImg, sImg, cv::Size(scaleFactor * sImg.cols, scaleFactor * sImg.rows));
-
-            oriPt = cv::Point(0, 0);
-        }
-    }
-
-    return 0;
-}
-
-
+std::vector<float *> PATCH_BUFFER;
+FILE *flog = fopen("log/log.txt", "w");
 
 int generate_negative_samples(std::vector<std::string> &imgList, int WIDTH, int HEIGHT, CascadeClassifier *cc, std::list<float*> &negativeSet, int size)
 {
-    int count = negativeSet.size();
+    int needNum = size - negativeSet.size();
 
-    while(count < size)
-    {
-        float *data;
-        int ret = read_neg_sample_from_file(imgList, WIDTH, HEIGHT, &data);
+    int dx = WIDTH * OR;
+    int dy = HEIGHT * OR;
 
-        if(ret == 0) return count;
+    int bufSize = PATCH_BUFFER.size();
+    int ret;
 
-#ifdef USE_HAAR_FEATURE
-        integral_image(data, WIDTH, HEIGHT);
+#define WRITE_NEG_SAMPLE
+#ifdef WRITE_NEG_SAMPLE
+    static int NEG_IDX = 0;
 #endif
 
-        if(classify(cc, data, WIDTH, 0, 0) == 1) {
-            negativeSet.push_back(data);
-            count++;
-            printf("%6.2f%%\r", 100.0 * count/size);
-            fflush(stdout);
-        }
-        else
-        {
-            delete [] data;
+    for(int i = bufSize - 1; i >= 0; i--){
+        ret = classify(cc, PATCH_BUFFER[i], WIDTH, 0, 0);
+        if(ret == 0){
+            HU_SWAP(PATCH_BUFFER[i], PATCH_BUFFER[bufSize - 1], float *);
+            delete PATCH_BUFFER[bufSize - 1];
+            PATCH_BUFFER.pop_back();
         }
     }
 
-    if(count > size) return size;
-    return count;
+    while(1){
+        cv::Mat img = cv::imread(imgList[IDX], 0);
+        if(img.empty()){
+            printf("Can't open image %s\n", imgList[IDX].c_str());
+            return 1;
+        }
+
+        int width = WIDTH * SC;
+        int height = width * img.rows / img.cols;
+        int stride = width;
+        float *data;
+
+        height = HU_MAX(height, HEIGHT);
+
+        cv::resize(img, img, cv::Size(width, height));
+
+        width -= WIDTH;
+        height -= HEIGHT;
+
+        int count = PATCH_BUFFER.size();
+        for(int y = 0; y <= height; y += dy){
+            for(int x = 0; x <= width; x += dx){
+
+                cv::Mat patch(img, cv::Rect(x, y, WIDTH, HEIGHT));
+
+                data = mat_to_float(patch);
+
+                integral_image(data, WIDTH, HEIGHT);
+
+                int ret = classify(cc, data, stride, 0, 0);
+                if(ret == 1){
+                    PATCH_BUFFER.push_back(data);
+
+#ifdef WRITE_NEG_SAMPLE
+
+                    char outName[128];
+                    sprintf(outName, "log/neg/%d.bmp", NEG_IDX++);
+                    cv::imwrite(outName, patch);
+#endif
+                }
+            }
+        }
+
+        IDX++;
+
+        if(IDX == imgList.size() ){
+            if(SC < MAX_SCALE_FACTOR)
+                SC += 1;
+            else
+                return 2;
+
+            IDX = 0;
+        }
+
+        bufSize = PATCH_BUFFER.size();
+
+        fprintf(flog, "%d %.0f %d\n", IDX, SC, bufSize - count);fflush(flog);
+
+        printf("%6.2f%%\r", bufSize * 100.0 / needNum);fflush(stdout);
+        if(bufSize >= needNum) break;
+    }
+
+    for(int i = 0; i < needNum; i++)
+        negativeSet.push_back(PATCH_BUFFER[i]);
+
+    PATCH_BUFFER.erase(PATCH_BUFFER.begin(), PATCH_BUFFER.begin() + needNum);
+
+
+    return 0;
 }
 
 
@@ -207,19 +195,19 @@ void select_feature(std::vector<Feature*> &featureSet, int featDim, std::vector<
 }
 
 
-StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &positiveSet, int numPos,
+void adaboost_learning(CascadeClassifier *cc, std::list<float *> &positiveSet, int numPos,
         std::list<float *> &negativeSet, int numNeg, std::list<float *> &validateSet, std::vector<Feature *> &featureSet,
             float maxfpr, float maxfnr)
 {
     StrongClassifier *sc = new StrongClassifier;
+    std::vector<Feature*> fineFeatSet;
 
-    int width = cc->WIDTH;
-    int height = cc->HEIGHT;
+    int width = cc->WIDTH, height = cc->HEIGHT;
 
     float *weights = NULL, *values = NULL;
 
     int sampleSize = numPos + numNeg;
-    int fsize = featureSet.size();
+    int fsize = 4000;
 
     float cfpr = 1.0;
 
@@ -228,18 +216,18 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
     values = new float[sampleSize];
     memset(values, 0, sizeof(float) * sampleSize);
 
-    while(cfpr > maxfpr)
-    {
+    while(cfpr > maxfpr){
         std::list<float *>::iterator iter;
         float minError = 1, error, beta;
         WeakClassifier *bestWC = NULL;
 
-        for(int i = 0; i < fsize; i++)
-        {
+        select_feature(featureSet, fsize, fineFeatSet);
+
+        for(int i = 0; i < fsize; i++){
             Feature *feat = new Feature;
             WeakClassifier *wc = new WeakClassifier;
 
-            init_feature(feat, featureSet[i]);
+            init_feature(feat, fineFeatSet[i]);
             init_weak_classifier(wc, 0, 0, feat);
 
             iter = positiveSet.begin();
@@ -260,7 +248,6 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
                 }
 
                 bestWC = wc;
-
                 minError = error;
 
                 printf("Select best weak classifier, min error: %f\r", minError);
@@ -307,25 +294,22 @@ StrongClassifier* adaboost_learning(CascadeClassifier *cc, std::list<float *> &p
 
         cfpr = fpr(sc, validateSet, width);
 
-        printf("fpr validate: %f\n", fpr(sc, validateSet, width));
-        printf("fpr negative: %f\n", fpr(sc, negativeSet, width));
+        printf("fpr validate: %f, fpr negative: %f\n", fpr(sc, validateSet, width), fpr(sc, negativeSet, width));
 
         printf("\n");
     }
 
     printf("\nWeak classifier size %ld\n", sc->wcs.size());
 
-
     delete [] values;
     delete [] weights;
 
-    return sc;
+    add(cc, sc);
 }
 
 
 int main_train(int argc, char **argv);
 int main_detect(int argc, char **argv);
-
 
 int main(int argc, char **argv)
 {
@@ -334,25 +318,10 @@ int main(int argc, char **argv)
 
 #elif defined(DETECT)
     main_detect(argc, argv);
+
 #endif
 
     return 0;
-}
-
-
-void print_train_usage(char *proc)
-{
-    printf("Usage: %s\n", proc);
-    printf("    --stage <number of stage\n");
-    printf("    -X <sample width>\n");
-    printf("    -Y <sample height>\n");
-    printf("    --false_alarm_rate <target false alarm rate>\n");
-    printf("    --missing_rate <max missing rate>\n");
-    printf("    --pos <positive sample set file>\n");
-    printf("    --numPos <number of positive sample used to train\n");
-    printf("    --neg <negative sample set file>\n");
-    printf("    --numNeg <number of negative sample used to train\n");
-    printf("    -m <output model file>\n");
 }
 
 
@@ -421,6 +390,7 @@ int read_config(char *fileName)
     return 0;
 }
 
+
 int main_train(int argc, char **argv)
 {
     if(argc < 3){
@@ -432,147 +402,73 @@ int main_train(int argc, char **argv)
     if(ret != 0) return 1;
     char *modelFile = argv[2];
 
+    CascadeClassifier *cc = new CascadeClassifier();
+
+    std::vector<Feature*> featureSet;
     std::vector<std::string> negImgList;
     std::list<float *> positiveSet, negativeSet, validateSet;
-    std::vector<Feature*> featureSet, fineFeatSet;
     float *stepFPR;
 
     int numPos, numNeg, numVal;
-    CascadeClassifier *cc = new CascadeClassifier();
-    StrongClassifier* sc;
     float maxfpr = 1.0;
     float maxfnr = MISSING_RATE;
 
-    std::list<StrongClassifier *> scs;
-    init_cascade_classifier(cc, scs, WINW, WINH);
+    char outname[128];
+
+    init_cascade_classifier(cc, std::list<StrongClassifier *>(), WINW, WINH);
+
+    printf("GENERATE FEATURE TEMPLATE\n");
+    generate_feature_set(featureSet, WINW, WINH);
 
     printf("GENERATE POSITIVE SAMPLES\n");
     ret = generate_positive_samples(POS_LIST_FILE, positiveSet, WINW, WINH);
     if(ret != 0) return 2;
 
-    printf("GENERATE NEGATIVE SAMPLES\n");
+    printf("READ NEGATIVE SAMPLES\n");
     read_image_list(NEG_LIST_FILE, negImgList);
 
     numPos = positiveSet.size();
-    numNeg = numPos * NP_RATE;
-
-    for(int i = 0; i < numNeg; i ++)
-    {
-        float *data = NULL;
-        read_neg_sample_from_file(negImgList, WINW, WINH, &data);
-
-#ifdef USE_HAAR_FEATURE
-        integral_image(data, WINW, WINH);
-#endif
-        negativeSet.push_back(data);
-    }
-
 
     printf("GENERATE VALIDATE SAMPLES\n");
-    generate_validate_samples(negImgList, WINW, WINH, validateSet, numPos);
+    numVal = numPos < 1000 ? numPos : 1000;
 
-    numVal = validateSet.size();
-    printf("Positive sample size: %ld\n", positiveSet.size());
-    printf("Negative sample size: %ld\n", negativeSet.size());
+    printf("Positive sample size: %d\n", numPos);
     printf("Validate sample size: %d\n", numVal);
-
-    printf("GENERATE FEATURE TEMPLATE\n");
-    generate_feature_set(featureSet, WINW, WINH);
 
     init_steps_false_positive(&stepFPR, STAGE, FALSE_ALARM_RATE);
 
     clock_t startTime = clock();
-    char outname[128];
 
     for(int i = 0; i < STAGE; i++){
+        StrongClassifier* sc;
+
         printf("\n--------------cascade stage %d-----------------\n", i+1);
 
-        int correctSize = 0;
-
-        std::list<float*>::iterator iter, iterEnd;
-
+        numPos = positiveSet.size();
         numNeg = numPos * NP_RATE;
-        printf("READ NEGATIVE SAMPLES\n");
-        ret = generate_negative_samples(negImgList, WINW, WINH, cc, negativeSet, numNeg);
-        if(ret != numNeg) {
-            printf("Can't generate enough negatvie samples %d:%d\n", ret, numNeg);
-            break;
-        }
-
-        printf("READ VALIDATE SAMPLES\n");
-        ret = generate_negative_samples(negImgList, WINW, WINH, cc, validateSet, numVal);
-        if(ret != numVal) {
-            printf("Can't generate enough validate samples %d:%d\n", ret, numVal);
-            break;
-        }
-
-        select_feature(featureSet, 2000, fineFeatSet);
         maxfpr *= stepFPR[i];
 
-        printf("Positive sample size: %d\n", numPos);
-        printf("Negative sample size: %d\n", numNeg);
-        printf("Target false positive rate: %f\n", maxfpr);
-        printf("Target false negative rate: %f\n", maxfnr);
+        printf("numPos: %d, numNeg = %d, TP: %6.4f, FN: %6.4f\n", numPos, numNeg, maxfpr, maxfnr);
 
-        sc = adaboost_learning(cc, positiveSet, numPos, negativeSet, numNeg, validateSet, fineFeatSet, maxfpr, maxfnr);
-        add(cc, sc);
-
-        iter = positiveSet.begin();
-        iterEnd = positiveSet.end();
-
-        while(iter != iterEnd)
-        {
-            if(classify(cc, *iter, WINW, 0, 0) == 0)
-            {
-                std::list<float*>::iterator iterTmp = iter;
-                iter++;
-                delete[] (*iterTmp);
-                positiveSet.erase(iterTmp);
-                iter--;
-            }
-
-            iter++;
+        printf("ADD NEGATIVE SAMPLES\n");
+        ret = generate_negative_samples(negImgList, WINW, WINH, cc, negativeSet, numNeg);
+        if(ret != 0) {
+            printf("Can't generate enough negatvie samples %ld\n", negativeSet.size());
+            break;
         }
 
-        numPos = positiveSet.size();
-        printf("cascade TP: %d\n", numPos);
-
-        iter = negativeSet.begin();
-        iterEnd = negativeSet.end();
-
-        correctSize = negativeSet.size();
-
-        while(iter != iterEnd)
-        {
-            if(classify(cc, *iter, WINW, 0, 0) == 0)
-            {
-                std::list<float*>::iterator iterTmp = iter;
-                iter++;
-                delete[] (*iterTmp);
-                negativeSet.erase(iterTmp);
-                iter--;
-            }
-
-            iter++;
+        printf("ADD VALIDATE SAMPLES\n");
+        ret = generate_negative_samples(negImgList, WINW, WINH, cc, validateSet, numVal);
+        if(ret != 0) {
+            printf("Can't generate enough validate samples %ld\n", validateSet.size());
+            break;
         }
 
-        printf("cascade TN: %ld\n", correctSize - negativeSet.size());
+        adaboost_learning(cc, positiveSet, numPos, negativeSet, numNeg, validateSet, featureSet, maxfpr, maxfnr);
 
-        iter = validateSet.begin();
-        iterEnd = validateSet.end();
-        while(iter != iterEnd)
-        {
-            if(classify(cc, *iter, WINW, 0, 0) == 0)
-            {
-                std::list<float*>::iterator iterTmp = iter;
-                iter++;
-                delete[] (*iterTmp);
-                validateSet.erase(iterTmp);
-                iter--;
-            }
-
-            iter++;
-        }
+        refine_samples(cc, positiveSet, WINW);
+        refine_samples(cc, negativeSet, WINW);
+        refine_samples(cc, validateSet, WINW);
 
         printf("----------------------------------------\n");
 
@@ -596,6 +492,10 @@ int main_train(int argc, char **argv)
     clear_list(positiveSet);
     clear_list(negativeSet);
     clear_list(validateSet);
+
+    for(int i = 0; i < PATCH_BUFFER.size(); i++)
+        delete[] PATCH_BUFFER[i];
+    PATCH_BUFFER.clear();
 
     clear_features(featureSet);
 
