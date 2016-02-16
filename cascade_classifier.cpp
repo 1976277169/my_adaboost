@@ -1,7 +1,7 @@
 #include "cascade_classifier.h"
 
 
-void init_cascade_classifier(CascadeClassifier *cascade, std::list<StrongClassifier*> &scs, int WIDTH, int HEIGHT)
+void init_cascade_classifier(CascadeClassifier *cascade, std::list<StrongClassifier*> scs, int WIDTH, int HEIGHT)
 {
     cascade->scs = scs;
     cascade->HEIGHT = HEIGHT;
@@ -23,11 +23,11 @@ void del(CascadeClassifier *cascade)
 
 int classify(CascadeClassifier *cascade, float *img, int stride, int x, int y)
 {
+    if(cascade->scs.size() == 0)
+        return 1;
+
     std::list<StrongClassifier*>::iterator iter = cascade->scs.begin();
     std::list<StrongClassifier*>::iterator iterEnd = cascade->scs.end();
-
-    if(cascade->scs.size() == 0)
-        return 0;
 
     while(iter != iterEnd){
         if(classify(*iter, img, stride, x, y) == 0)
@@ -150,6 +150,27 @@ void clear(CascadeClassifier *cascade)
     cascade->scs.clear();
 
     delete cascade;
+}
+
+
+void refine_samples(CascadeClassifier *cc, std::list<float*> &samples, int stride){
+    std::list<float*>::iterator iter, iterEnd, iterTmp;
+
+    iter = samples.begin();
+    iterEnd = samples.end();
+
+    while(iter != iterEnd){
+        if(classify(cc, *iter, stride, 0, 0) == 0)
+        {
+            std::list<float*>::iterator iterTmp = iter;
+            iter++;
+            delete[] (*iterTmp);
+            samples.erase(iterTmp);
+            iter--;
+        }
+
+        iter++;
+    }
 }
 
 
