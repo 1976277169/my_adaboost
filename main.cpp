@@ -134,7 +134,7 @@ int generate_negative_samples(std::vector<std::string> &imgList, int WIDTH, int 
 
                 integral_image(data, WIDTH, HEIGHT);
 
-                int ret = classify(cc, data, stride, 0, 0);
+                int ret = classify(cc, data, WIDTH, 0, 0);
                 if(ret == 1){
                     PATCH_BUFFER.push_back(data);
 
