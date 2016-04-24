@@ -3,16 +3,10 @@
 
 #define USE_HAAR_FEATURE
 
-#if defined(USE_HAAR_FEATURE)
-#include "feature.h"
+#include "sample.h"
 
-#elif defined(USE_NPD_FEATURE)
-#include "npd_feature.h"
-
-#else
-#include "feature.h"
-
-#endif
+#define POS_SAMPLE_FLAG 1
+#define NEG_SAMPLE_FLAG -1
 
 
 typedef struct {
@@ -24,10 +18,10 @@ typedef struct {
 
 void init_weak_classifier(WeakClassifier *weak, float thresh, int sign, Feature *feat);
 float train(WeakClassifier *weak, float *value, int posSize, int negSize, float *weights);
-int classify(WeakClassifier *weak, float *img, int stride, int x, int y);
 
+int classify(WeakClassifier *weak, Sample *sample);
 void save(WeakClassifier *weak, FILE *fout);
 void load(WeakClassifier **aWeak, FILE *fin);
-void clear(WeakClassifier *weak);
+void clear(WeakClassifier **weak);
 
 #endif

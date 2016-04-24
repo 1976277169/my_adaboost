@@ -1,10 +1,9 @@
 #include "tool.h"
-#include <stdio.h>
 #include <math.h>
 #include <assert.h>
 
-#define LT(a, b) (a < b)
-#define BG(a, b) (a > b)
+#define LT(a, b) ((a) < (b))
+#define BG(a, b) ((a) > (b))
 #define LT_PAIR_V(a, b) ((a).value < (b).value)
 #define LT_PAIR_I(a, b) ((a).idx < (b).idx)
 
@@ -231,13 +230,23 @@ void init_weights(float **weights, int numPos, int numNeg)
 
 void update_weights(float *weights, int numPos, int numNeg)
 {
-    float sum = 0;
+    double sum = 0;
     int sampleSize = numPos + numNeg;
 
-    for(int i = 0; i < sampleSize; i++)
+    sum = 0;
+    for(int i = 0; i < numPos; i++)
         sum += weights[i];
 
-    for(int i = 0; i < sampleSize; i++)
+    sum *= 2;
+    for(int i = 0; i < numPos; i++)
+        weights[i] /= sum;
+
+    sum = 0;
+    for(int i = numPos; i < sampleSize; i++)
+        sum += weights[i];
+
+    sum *= 2;
+    for(int i = numPos; i < sampleSize; i++)
         weights[i] /= sum;
 }
 
@@ -338,4 +347,27 @@ void merge_rect(std::vector<cv::Rect> &rects)
 
     delete []flags;
 }
+
+
+float *mat_to_float(cv::Mat &img)
+{
+    int w = img.cols;
+    int h = img.rows;
+
+    float *data = new float[w * h];
+    float *pdata = data;
+
+    uchar *pImg = img.data;
+
+    for(int y = 0; y < h; y++){
+        for(int x = 0; x < w; x++)
+            pdata[x] = pImg[x] / 255.0;
+
+        pdata += w;
+        pImg += img.step;
+    }
+
+    return data;
+}
+
 

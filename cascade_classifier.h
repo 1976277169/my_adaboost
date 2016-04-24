@@ -5,27 +5,23 @@
 #include <list>
 
 typedef struct {
-    std::list<StrongClassifier*> scs;
+    std::vector<StrongClassifier*> scs;
     int WIDTH, HEIGHT;
 } CascadeClassifier;
 
-void init_cascade_classifier(CascadeClassifier *cascade, std::list<StrongClassifier*> scs, int WIDTH, int HEIGHT);
+void init_cascade_classifier(CascadeClassifier *cascade, std::vector<StrongClassifier*> scs, int WIDTH, int HEIGHT);
 
 void add(CascadeClassifier *cascade, StrongClassifier *sc);
 void del(CascadeClassifier *cascade);
 
-int classify(CascadeClassifier *cascade, float *img, int stride, int x, int y);
+int classify(CascadeClassifier *cascade, Sample *sample);
+float fnr(CascadeClassifier *cc, std::vector<Sample*> &samples);
+float fpr(CascadeClassifier *cc, std::vector<Sample*> &samples);
 
-float fnr(CascadeClassifier *cascade, std::list<float*> &posSamples, int stride);
-float fpr(CascadeClassifier *cascade, std::list<float*> &negSamples, int stride);
-
-void refine_samples(CascadeClassifier *cc, std::list<float*> &samples, int stride);
+void clean_samples(CascadeClassifier *cc, std::vector<Sample*> &samples);
 
 void load(CascadeClassifier **aCascade, const char *fileName);
 void save(CascadeClassifier *cascade, const char *fileName);
-void clear(CascadeClassifier *cascade);
-#ifdef USE_HAAR_FEATURE
-void print_feature(CascadeClassifier *cc);
-#endif
+void clear(CascadeClassifier **cascade);
 
 #endif

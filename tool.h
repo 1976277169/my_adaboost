@@ -1,11 +1,17 @@
 #ifndef _TOOL_H_
 #define _TOOL_H_
 
+#include <opencv2/core/core.hpp>
+#include <opencv2/imgproc/imgproc.hpp>
+#include <opencv2/highgui/highgui.hpp>
+
+#include <float.h>
 #include <inttypes.h>
 #include <vector>
 #include <string>
 #include <list>
 #include <time.h>
+#include <stdio.h>
 
 #define HU_SWAP(x,y, type) {type tmp = (x); (x) = (y); (y) = (tmp);}
 #define HU_MIN(i,j)   (((i) > (j)) ? (j) : (i))
@@ -199,10 +205,6 @@ void update_weights(float *weights, int numPos, int numNeg);
 void clear_list(std::list<float*> &set);
 
 
-#include <opencv2/core/core.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
-
 void show_image(float *data, int width, int height);
 void print_time(clock_t t);
 
@@ -215,4 +217,7 @@ void sort_arr_pair(PairF *array, int total_num);
 void sort_arr_pair_idx(PairF *array, int total_num);
 
 void merge_rect(std::vector<cv::Rect> &rects);
+
+float *mat_to_float(cv::Mat &img);
+
 #endif

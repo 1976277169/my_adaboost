@@ -22,42 +22,41 @@ void init_strong_classifier(StrongClassifier *sc, std::vector<float> &aweights, 
 }
 
 
-void train(StrongClassifier *sc, std::list<float *> &posSamples, int stride, float maxfnr)
-{
-    int size = posSamples.size();
+void train(StrongClassifier *sc, std::vector<Sample*> &samples, float recall){
+    int size = samples.size();
+
     float *scores = new float[size];
-    int idx = maxfnr * size;
-    int wcsSize = sc->wcs.size();
+    int wcSize = sc->wcs.size();
 
-    assert(0 <= maxfnr && maxfnr < 1);
-
-    std::list<float *>::iterator iter = posSamples.begin();
-
-    for(int i = 0; i < size; i++, iter++)
-    {
+    for(int i = 0; i < size; i++){
         scores[i] = 0;
 
-        for(int j = 0; j < wcsSize; j++)
-            scores[i] += sc->weights[j] * classify(sc->wcs[j], *iter, stride, 0, 0);
+        for(int j = 0; j < wcSize; j++){
+            scores[i] += sc->weights[j] * classify(sc->wcs[j], samples[i]);
+        }
     }
 
     sort_arr_float_ascend(scores, size);
 
-    sc->thresh = scores[idx];
-
+    sc->thresh = scores[int(recall * size)] - 0.00001;
+/*
+    for(int i = 0; i < 10; i++)
+        printf("%f ", scores[i]);
+    printf("\n");
+//*/
     delete [] scores;
 }
 
 
-int classify(StrongClassifier *sc, float *img, int stride, int x, int y)
+int classify(StrongClassifier *sc, Sample *sample)
 {
     int size = sc->wcs.size();
     float scores = 0;
 
     for(int i = 0; i < size; i++)
-        scores += sc->weights[i] * classify(sc->wcs[i], img, stride, x, y);
+        scores += sc->weights[i] * classify(sc->wcs[i], sample);
 
-    if(scores >= sc->thresh)
+    if(scores > sc->thresh)
         return 1;
 
     return 0;
@@ -71,27 +70,23 @@ void add(StrongClassifier *sc, WeakClassifier *wc, float weight)
 }
 
 
-float fnr(StrongClassifier *sc, std::list<float*> &posSamples, int stride)
-{
-    int size = posSamples.size();
+float fnr(StrongClassifier *sc, std::vector<Sample*> &samples){
+    int size = samples.size();
     int fn = 0;
-    std::list<float*>::iterator iter = posSamples.begin();
 
-    for(int i = 0; i < size; i++, iter++)
-        fn += (classify(sc, *iter, stride, 0, 0) == 0);
+    for(int i = 0; i < size; i++)
+        fn += (classify(sc, samples[i]) == 0);
 
     return float(fn) / size;
 }
 
 
-float fpr(StrongClassifier *sc, std::list<float*> &negSamples, int stride)
-{
-    int size = negSamples.size();
+float fpr(StrongClassifier *sc, std::vector<Sample*> &samples){
+    int size = samples.size();
     int fp = 0;
-    std::list<float*>::iterator iter = negSamples.begin();
 
-    for(int i = 0; i < size; i++, iter++)
-        fp += (classify(sc, *iter, stride, 0, 0) == 1);
+    for(int i = 0; i < size; i++)
+        fp += (classify(sc, samples[i]) == 1);
 
     return float(fp) / size;
 }
@@ -147,30 +142,19 @@ void load(StrongClassifier **asc, FILE *fin)
 }
 
 
-void clear(StrongClassifier *sc)
+void clear(StrongClassifier **aSc)
 {
+    StrongClassifier *sc = *aSc;
+
     int size = sc->wcs.size();
 
     for(int i = 0; i < size; i++)
-        clear(sc->wcs[i]);
+        clear(&sc->wcs[i]);
 
     sc->weights.clear();
     sc->wcs.clear();
 
-    delete sc;
+    delete *aSc;
+
+    *aSc = NULL;
 }
-
-
-#ifdef USE_HAAR_FEATURE
-void print_feature(StrongClassifier *sc)
-{
-    int size = sc->wcs.size();
-
-    for(int i = 0; i < size; i++)
-    {
-        Feature * feat = sc->wcs[i]->feat;
-
-        printf("%d %2d %2d %2d %2d\n", feat->type, feat->x0, feat->y0, feat->w, feat->h);
-    }
-}
-#endif

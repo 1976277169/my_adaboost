@@ -1,4 +1,4 @@
-OBJ = cascade_classifier.o strong_classifier.o weak_classifier.o feature.o tool.o
+OBJ = adaboost.o cascade_classifier.o strong_classifier.o weak_classifier.o feature.o tool.o
 DEP = -I/usr/local/include/opencv -lopencv_core -lopencv_imgproc -lopencv_highgui
 DIR = bin
 DST = ${DIR}/train ${DIR}/detect ${DIR}/main

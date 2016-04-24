@@ -17,19 +17,16 @@ typedef struct{
 void init_strong_classifier(StrongClassifier *sc, std::vector<float> &aweights, std::vector<WeakClassifier*> &awcs, float thresh);
 void add(StrongClassifier *sc, WeakClassifier *wc, float weight);
 
-void train(StrongClassifier *sc, std::list<float *> &posSamples, int stride, float maxfnr);
-int classify(StrongClassifier *sc, float *img, int stride, int x, int y);
+void train(StrongClassifier *sc, std::vector<Sample*> &samples, float recall);
+int classify(StrongClassifier *sc, Sample *sample);
 
-float fnr(StrongClassifier *sc, std::list<float*> &posSamples, int stride);
-float fpr(StrongClassifier *sc, std::list<float*> &negSamples, int stride);
+float fnr(StrongClassifier *sc, std::vector<Sample*> &samples);
+float fpr(StrongClassifier *sc, std::vector<Sample*> &samples);
 
 int empty(StrongClassifier *sc);
 
 void load(StrongClassifier **asc, FILE *fin);
 void save(StrongClassifier *sc, FILE* fout);
-void clear(StrongClassifier *sc);
+void clear(StrongClassifier **sc);
 
-#ifdef USE_HAAR_FEATURE
-void print_feature(StrongClassifier *sc);
-#endif
 #endif

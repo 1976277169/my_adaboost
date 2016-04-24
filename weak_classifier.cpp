@@ -22,114 +22,97 @@ void init_weak_classifier(WeakClassifier *weak, float thresh, int sign, Feature 
 
 float train(WeakClassifier *weak, float *value, int posSize, int negSize, float *weights)
 {
-    int sampleSize = posSize + negSize;
+    int sampleSize = negSize + posSize;
 
-    Scores *scores = new Scores[sampleSize];
+    float maxv = -FLT_MAX;
+    float minv = FLT_MAX;
 
-    float *wp = new float[sampleSize];
-    float *wn = new float[sampleSize];
+    const int LENGTH = 1024;
 
-    float tp, tn;
+    float posWs[LENGTH];
+    float negWs[LENGTH];
 
-    float minError = 1;
-    float errorPos = 0;
-    float errorNeg = 0;
+    float *ptrValue, *ptrW;
+    float sumpw = 0, sumnw = 0;
 
-    int i, j;
-
-
-    for(i = 0; i < posSize; i++)
-    {
-        scores[i].value = value[i];
-        scores[i].label = 1;
-        scores[i].weight = weights[i];
+    for(int i = 0; i < sampleSize; i++){
+        maxv = HU_MAX(value[i], maxv);
+        minv = HU_MIN(value[i], minv);
     }
 
-    for(; i < sampleSize; i++)
-    {
-        scores[i].value = value[i];
-        scores[i].label = 0;
-        scores[i].weight = weights[i];
+    float step = (maxv - minv) / (LENGTH - 1);
+
+    memset(posWs, 0, sizeof(float) * LENGTH);
+    memset(negWs, 0, sizeof(float) * LENGTH);
+
+    ptrValue = value;
+    ptrW = weights;
+
+    for(int i = 0; i < posSize; i++){
+        int id = (ptrValue[i] - minv) / step;
+
+        posWs[id] += weights[i];
+        sumpw += weights[i];
     }
 
-    sort_arr_scores(scores, sampleSize);
+    ptrValue = value + posSize;
+    ptrW = weights + posSize;
 
-    if(scores[0].label == 1)
-    {
-        wp[0] = 0;
-        wn[0] = scores[0].weight;
-    }
-    else
-    {
-        wn[0] = scores[0].weight;
-        wp[0] = 0;
+    for(int i = 0; i < negSize; i++){
+        int id = (ptrValue[i] - minv) / step;
+
+        negWs[id] += weights[i];
+        sumnw += weights[i];
     }
 
-    for(i = 1; i < sampleSize; i++)
-    {
-        if(scores[i].label == 1)
-        {
-            wp[i] = wp[i - 1] + scores[i].weight;
-            wn[i] = wn[i - 1];
-        }
-        else
-        {
-            wp[i] = wp[i - 1];
-            wn[i] = wn[i - 1] + scores[i].weight;
-        }
-    }
 
-    tp = wp[sampleSize - 1];
-    tn = wn[sampleSize - 1];
+    float minError = FLT_MAX, error;
+    float t1, t2;
 
+    posWs[0] /= sumpw;
+    negWs[0] /= sumnw;
 
-    for(i = 0; i < sampleSize; i++)
-    {
-        for(j = i + 1; j < sampleSize; j++)
-        {
-            if(scores[i].value != scores[j].value)
-                break;
-        }
+    for(int i = 1; i < LENGTH; i++){
+        posWs[i] /= sumpw;
+        posWs[i] += posWs[i - 1];
 
-        i = j - 1;
+        negWs[i] /= sumnw;
+        negWs[i] += negWs[i - 1];
 
-        errorPos = wp[i] + tn - wn[i];
-        errorNeg = wn[i] + tp - wp[i];
+        t1 = posWs[i] + 1 - negWs[i];
+        t2 = negWs[i] + 1 - posWs[i];
 
-        //printf("value: %f, errorPos: %f, errorNeg: %f\n", scores[i].value, errorPos, errorNeg);
-        if(errorPos < minError && errorPos < errorNeg)
-        {
-            minError = errorPos;
-            weak->sign = 1;
-            weak->thresh = scores[i].value;
-        }
-        else if(errorNeg < minError && errorNeg < errorPos)
-        {
-            minError = errorNeg;
-            weak->sign = 0;
-            weak->thresh = scores[i].value;
+        error = (HU_MIN(t1, t2)) / 2;
+
+        if(error < minError){
+            minError = error;
+            weak->thresh = minv + i * step;
+
+            if(t1 < t2)
+                weak->sign = 1;
+            else
+                weak->sign = 0;
         }
     }
-
-    delete[] scores;
-    delete[] wp;
-    delete[] wn;
 
     return minError;
 }
 
 
-int classify(WeakClassifier *weak, float *img, int stride, int x, int y)
-{
-    float value = get_value(weak->feat, img, stride, x, y);
+int classify(WeakClassifier *weak, Sample *sample){
+    assert(weak->feat != NULL);
+
+    float value = get_value(sample, weak->feat);
+
     float thresh = weak->thresh;
     float sign = weak->sign;
 
     if( (value > thresh && sign == 1) || (value <= thresh && sign == 0) )
-        return 1;
+        return POS_SAMPLE_FLAG;
 
     else
-        return -1;
+        return NEG_SAMPLE_FLAG;
+
 }
 
 
@@ -159,9 +142,13 @@ void load(WeakClassifier **aWeak, FILE *fin)
 }
 
 
-void clear(WeakClassifier *weak)
+void clear(WeakClassifier **weak)
 {
-    delete weak->feat;
-    delete weak;
-    weak = NULL;
+    if((*weak)->feat != NULL){
+        delete (*weak)->feat;
+        (*weak)->feat = NULL;
+    }
+
+    delete *weak;
+    *weak = NULL;
 }
