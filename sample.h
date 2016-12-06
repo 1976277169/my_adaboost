@@ -27,6 +27,12 @@ typedef struct {
 } Sample;
 
 
+typedef struct {
+    Sample *samples;
+    int ssize_;
+} SampleSet;
+
+
 Sample* create_sample(uint8_t *img, int width, int height, int stride);
 void set_image(Sample* sample, uint8_t *img, int width, int height, int stride);
 void release_sample(Sample** src);

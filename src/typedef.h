@@ -1,24 +1,29 @@
-#ifndef _TOOL_H_
-#define _TOOL_H_
+#ifndef _TYPE_DEFS_H_
+#define _TYPE_DEFS_H_
 
-#include <opencv2/core/core.hpp>
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/highgui/highgui.hpp>
+#define HU_SWAP(x, y, type) {type tmp = (x); (x) = (y); (y) = (tmp);}
+#define HU_MIN(i, j) ((i) > (j) ? (j) : (i))
+#define HU_MAX(i, j) ((i) < (j) ? (j) : (i))
+#define HU_ABS(a) ((a) < 0 ? (-a) : (a))
 
-#include <float.h>
-#include <inttypes.h>
-#include <vector>
-#include <string>
-#include <list>
-#include <time.h>
-#include <stdio.h>
 
-#define HU_SWAP(x,y, type) {type tmp = (x); (x) = (y); (y) = (tmp);}
-#define HU_MIN(i,j)   (((i) > (j)) ? (j) : (i))
-#define HU_MAX(i,j)   (((i) < (j)) ? (j) : (i))
+#define EPSILON 0.000001f
+#define HU_PI 3.1415926535
 
+#ifndef HU_FREE
+#define HU_FREE(arr) \
+{ \
+    if(arr != NULL) \
+        free(arr); \
+    arr = NULL; \
+}
+#endif
+
+
+
+//quick sort implementation, fast than qsort in stdlib.h
 #define IMPLEMENT_QSORT(function_name, T, LT)                                   \
-    void function_name( T *array, int total_num)                                        \
+    void function_name( T *array, int total_num)                                    \
 {                                                                                   \
     int isort_thresh = 7;                                                           \
     int sp = 0;                                                                     \
@@ -31,7 +36,7 @@
     stack[48];                                                                      \
     \
     if( total_num <= 1 )                                                            \
-    return;                                                                     \
+    return;                                                                         \
     \
     stack[0].lb = array;                                                            \
     stack[0].ub = array + (total_num - 1);                                          \
@@ -49,7 +54,7 @@
             \
             if( n <= isort_thresh )                                                 \
             {                                                                       \
-                insert_sort_##func_name:                                                \
+                insert_sort_##func_name:                                            \
                 for( ptr = left + 1; ptr <= right; ptr++ )                          \
                 {                                                                   \
                     for( ptr2 = ptr; ptr2 > left && LT(ptr2[0],ptr2[-1]); ptr2--)   \
@@ -179,44 +184,13 @@
 }
 
 
-void sort_arr_float_ascend(float *arr, int total_num);
-void sort_arr_float_descend(float *arr, int total_num);
+#define LT(a, b) ((a) < (b))
 
-int read_image_list(const char *fileName, std::vector<std::string> &imageList);
 
-void normalize_image(float *img, int width, int height);
-void normalize_image_npd(float *img, int width, int height);
-
-float* rotate_90deg(float *img, int width, int height);
-float* rotate_180deg(float *img, int width, int height);
-float* rotate_270deg(float *img, int width, int height);
-
-float* vertical_mirror(float *img, int width, int height);
-
-void add_rotated_images(std::list<float*> &set, int size, int width, int height);
-void add_vertical_mirror(std::list<float*> &set, int size, int width, int height);
-
-void integral_image(float *img, int width, int height);
-
-void init_steps_false_positive(float **Fi, int step, float targetFPR);
-void init_weights(float **weights, int numPos, int numNeg);
-void update_weights(float *weights, int numPos, int numNeg);
-
-void clear_list(std::list<float*> &set);
-
-void show_image(float *data, int width, int height);
-void print_time(clock_t t);
-
-typedef struct {
-    int idx;
-    float value;
-} PairF;
-
-void sort_arr_pair(PairF *array, int total_num);
-void sort_arr_pair_idx(PairF *array, int total_num);
-
-void merge_rect(std::vector<cv::Rect> &rects);
-
-float *mat_to_float(cv::Mat &img);
+#define RET_OK         0
+#define RET_SPEC       1
+#define RET_IO_ERROR   2
+#define RET_DATA_NULL  3
+#define RET_FILE_ERROR 4
 
 #endif

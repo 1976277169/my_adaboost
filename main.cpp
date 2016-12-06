@@ -148,7 +148,7 @@ int main_train(int argc, char **argv)
 
         numPos = positiveSet.size();
         numNeg = numPos * NP_RATE;
-        maxfpr *= stepFPR[i];
+        maxfpr *= 0.5;
 
         printf("numPos: %d, numNeg = %d, TP: %6.4f, FN: %6.4f\n", numPos, numNeg, maxfpr, maxfnr);
 
@@ -258,7 +258,7 @@ int main_detect(int argc, char **argv)
     std::vector<cv::Rect> rects;
 
     detect_object(cc, img, 0.4, 1.0, 5, slideStep, rects);
-    merge_rect(rects);
+    //merge_rect(rects);
 
     clear(&cc);
 
