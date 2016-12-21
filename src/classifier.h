@@ -13,12 +13,13 @@ typedef struct {
     HaarType type;
 } FeatTemp;
 
+void print_feature_template(FeatTemp *ft, FILE *fout);
 
 typedef struct {
     FeatTemp *featTemps;
 
     float *wcss; //weak classfier score
-    int *wcts; //weak classifier thresh
+    int *wcts;   //weak classifier thresh
     int8_t *signs;
 
     int ssize;
@@ -27,8 +28,13 @@ typedef struct {
     float thresh;
 } StrongClassifier;
 
-int generate_feature_templates(int WINW, int WINH, FeatTemp **temps);
-int train(StrongClassifier *sc, SampleSet *posSet, SampleSet *negSet, float recall, float precision);
-int predict(StrongClassifier *sc, uint32_t *intImg, int istride);
+int train(StrongClassifier *sc, SampleSet *posSet, SampleSet *negSet, SampleSet *valSet, float recall, float precision);
+int predict(StrongClassifier *sc, uint32_t *intImg, int istride, int winSize, float &score);
+
+int save(StrongClassifier *sc, FILE *fout);
+int load(StrongClassifier *sc, FILE *fin);
+
+void release(StrongClassifier **sc);
+void release_data(StrongClassifier *sc);
 
 #endif

@@ -21,6 +21,8 @@ int read_file_list(const char *filePath, std::vector<std::string> &fileList)
 }
 
 
+
+
 void analysis_file_path(const char* filePath, char *rootDir, char *fileName, char *ext)
 {
     int len = strlen(filePath);
@@ -43,9 +45,9 @@ void analysis_file_path(const char* filePath, char *rootDir, char *fileName, cha
 
     idx2 = idx;
     while(idx2 >= 0){
-#if defined(WIN32)
+#ifdef WIN32
         if(filePath[idx2] == '\\')
-#elif defined(linux)
+#else
         if(filePath[idx2] == '/')
 #endif
             break;
@@ -73,11 +75,11 @@ void integral_image(uint8_t *img, int width, int height, int stride, uint32_t *i
     for(int y = 0; y < height; y++){
         intImg[id0] = img[id1];
         for(int x = 1; x < width; x++){
-            intImg[id0 + x] = img[id1] + intImg[id0 + x - 1];
+            intImg[id0 + x] = img[id1 + x] + intImg[id0 + x - 1];
         }
 
         id0 += istride;
-        id1 = stride;
+        id1 += stride;
     }
 
     id0 = 0, id1 = istride;
@@ -100,8 +102,10 @@ void update_weights(double *weights, int size){
         sum += weights[i];
 
     sum = 1.0f / sum;
-    for(int i = 0; i < size; i++)
-        weights[i] = weights[i] * sum;
+    for(int i = 0; i < size; i++){
+        weights[i] *= sum;
+    }
+
 }
 
 
@@ -236,3 +240,59 @@ void resizer_bilinear_gray(uint8_t *src, int srcw, int srch, int srcs, uint8_t *
     delete [] table;
 }
 
+
+IMPLEMENT_QSORT(sort_arr_float, float, LT);
+
+
+void transform_image(cv::Mat &img, int WINW){
+    static cv::RNG rng(cv::getTickCount());
+
+    int w = rng.uniform(3 * WINW, 10 * WINW);
+    int h = w * img.rows / img.cols;
+
+    float angle = rng.uniform(-180.0f, 180.0f);
+
+    cv::Mat affineMat = cv::getRotationMatrix2D(cv::Point2f(img.cols >> 1, img.rows >> 1), angle, float(w) / img.cols);
+
+    cv::warpAffine(img, img, affineMat, cv::Size(w, h));
+
+    if(rng.uniform(0, 8) == 0){
+        cv::equalizeHist(img, img);
+    }
+
+    if(rng.uniform(0, 8) == 0){
+        uint8_t *data = img.data;
+
+        int sum = 0;
+        for(int y = 0; y < img.rows; y++){
+            for(int x = 0; x < img.cols; x++)
+                sum += data[x];
+
+            data += img.step;
+        }
+
+        sum /= (img.cols * img.rows);
+
+        data = img.data;
+        for(int y = 0; y < img.rows; y++){
+            for(int x = 0; x < img.cols; x++)
+                data[x] = ((data[x] - sum) / (data[x] + sum) + 1.0f) * 0.5 * 255;
+
+            data += img.step;
+        }
+    }
+
+
+    if(rng.uniform(0, 8) == 0){
+        uint8_t *data = img.data;
+
+        for(int y = 0; y < img.rows; y++){
+            for(int x = 0; x < img.cols; x++){
+                if(data[x] > 16 && data[x] < 239)
+                    data[x] += rng.uniform(-16, 16);
+            }
+
+            data += img.step;
+        }
+    }
+}
